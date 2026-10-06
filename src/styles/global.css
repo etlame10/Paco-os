@@ -673,3 +673,6 @@ a.widget-row:hover, button.widget-row:hover, .widget-row:has(.widget-row-main:ho
   .toolbar .search-box { min-width: 100%; }
   .stats-row { grid-template-columns: repeat(2, 1fr); }
 }
+
+.notice-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.notice-danger svg { color: var(--danger); }

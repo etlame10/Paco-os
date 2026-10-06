@@ -11,6 +11,8 @@ import Calendar from './pages/Calendar'
 import ModulePage from './pages/ModulePage'
 import ModulesStore from './pages/ModulesStore'
 import Settings from './pages/Settings'
+import ConfigError from './pages/ConfigError'
+import { supabaseConfigError } from './lib/supabase'
 
 function Gate() {
   const { session, loading, recovery } = useAuth()
@@ -45,6 +47,9 @@ function FullScreenLoader() {
 
 // HashRouter: las rutas van tras "#", así funciona en GitHub Pages sin configurar el servidor.
 export default function App() {
+  // Clave de Supabase peligrosa (secreta) en el build: no se arranca nada más.
+  if (supabaseConfigError) return <ConfigError message={supabaseConfigError} />
+
   return (
     <HashRouter>
       <UIProvider>

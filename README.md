@@ -78,8 +78,10 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 1. Sube este proyecto a un repositorio de GitHub (rama `main`).
 2. En el repositorio: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. En **Settings → Secrets and variables → Actions → New repository secret**, crea:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_SUPABASE_ANON_KEY` → la **Publishable key** (`sb_publishable_...`). **Nunca** la Secret key (`sb_secret_...`).
+   - `VITE_SUPABASE_URL` (opcional: si no existe se usa la URL del proyecto configurada en el workflow)
+
+   El workflow comprueba la clave antes de compilar (sin mostrarla) y **detiene el despliegue** si es una clave secreta o `service_role`.
 4. Cada `push` a `main` publica automáticamente la web (también puedes lanzarlo a mano en **Actions → Deploy a GitHub Pages → Run workflow**).
 5. Tu PACO OS quedará en: `https://<tu-usuario>.github.io/<nombre-del-repo>/`
 6. En Supabase, ve a **Authentication → URL Configuration**:

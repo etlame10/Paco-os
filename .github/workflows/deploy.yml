@@ -1,7 +1,11 @@
-# Publica PACO OS en GitHub Pages cada vez que se sube código a "main".
+# Publica PACO OS en GitHub Pages cada vez que se sube código a "main"
+# (o a mano: Actions → Deploy a GitHub Pages → Run workflow).
 # Requisitos (una sola vez, ver README):
 #   1. Settings > Pages > Source: "GitHub Actions"
-#   2. Settings > Secrets and variables > Actions: VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
+#   2. Settings > Secrets and variables > Actions > Secrets:
+#        VITE_SUPABASE_ANON_KEY = Publishable key de Supabase (sb_publishable_...)
+#      ¡NUNCA la Secret key (sb_secret_...) ni service_role! Todo lo que se pasa al build
+#      acaba dentro del JavaScript público de la web.
 name: Deploy a GitHub Pages
 
 on:
@@ -18,20 +22,55 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  # La URL del proyecto no es secreta. Se puede sobrescribir con el secreto o la variable VITE_SUPABASE_URL.
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://pwzkkmqtjkzvskwlopwh.supabase.co' }}
+  VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Comprueba la clave SIN mostrarla. Si no es una clave pública, el despliegue se detiene
+      # antes de compilar, para que una clave secreta nunca llegue a la web.
+      - name: Comprobar configuración de Supabase
+        run: |
+          key="$(printf '%s' "$VITE_SUPABASE_ANON_KEY" | tr -d '[:space:]')"
+          if [ -z "$key" ]; then
+            echo "::error title=Falta VITE_SUPABASE_ANON_KEY::Crea el secreto VITE_SUPABASE_ANON_KEY con la Publishable key (sb_publishable_...)."
+            exit 1
+          fi
+          case "$key" in
+            sb_secret_*)
+              echo "::error title=Clave SECRETA detectada::VITE_SUPABASE_ANON_KEY contiene una Secret key (sb_secret_...). Sustitúyela por la Publishable key (sb_publishable_...) y revoca la Secret key en Supabase."
+              exit 1 ;;
+            sb_publishable_*)
+              echo "OK: VITE_SUPABASE_ANON_KEY es una Publishable key." ;;
+            *.*.*)
+              payload="$(printf '%s' "$key" | cut -d. -f2 | tr '_-' '/+')"
+              while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="${payload}="; done
+              if printf '%s' "$payload" | base64 -d 2>/dev/null | grep -q '"role" *: *"service_role"'; then
+                echo "::error title=Clave service_role detectada::VITE_SUPABASE_ANON_KEY contiene la clave service_role. Usa la Publishable key (sb_publishable_...)."
+                exit 1
+              fi
+              echo "OK: VITE_SUPABASE_ANON_KEY es una clave anon (JWT) clásica." ;;
+            *)
+              echo "::error title=Clave no reconocida::VITE_SUPABASE_ANON_KEY debe empezar por sb_publishable_."
+              exit 1 ;;
+          esac
+          case "$VITE_SUPABASE_URL" in
+            https://*.supabase.co|https://*.supabase.co/) echo "OK: VITE_SUPABASE_URL = $VITE_SUPABASE_URL" ;;
+            *) echo "::error title=URL no válida::VITE_SUPABASE_URL debe ser https://<proyecto>.supabase.co"; exit 1 ;;
+          esac
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
