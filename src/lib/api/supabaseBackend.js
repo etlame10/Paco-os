@@ -25,7 +25,8 @@ export const supabaseBackend = {
       return data.session
     },
     onChange(cb) {
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session))
+      // event: 'SIGNED_IN' | 'SIGNED_OUT' | 'PASSWORD_RECOVERY' | 'TOKEN_REFRESHED' | ...
+      const { data } = supabase.auth.onAuthStateChange((event, session) => cb(session, event))
       return () => data.subscription.unsubscribe()
     },
     async signIn(email, password) {

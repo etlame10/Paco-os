@@ -48,15 +48,18 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 1. Crea una cuenta gratuita en [supabase.com](https://supabase.com) y un **proyecto nuevo**.
 2. Ve a **SQL Editor → New query**, pega el contenido de [`supabase/schema.sql`](supabase/schema.sql) y pulsa **Run**.
    Esto crea las tablas, la seguridad (cada usuario solo ve sus datos) y el bucket privado de archivos `paco-files`.
-3. Ve a **Project Settings → API** y copia:
+3. Ve a **Project Settings → API Keys** y copia:
    - `Project URL`
-   - `anon public` key
+   - la **Publishable key** (`sb_publishable_...`). También sirve la clave `anon` clásica.
 4. En tu ordenador, copia `.env.example` como `.env.local` y pega esos valores:
 
    ```env
    VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
-   VITE_SUPABASE_ANON_KEY=tu-clave-anon
+   VITE_SUPABASE_ANON_KEY=sb_publishable_...
    ```
+
+   `.env.local` está en `.gitignore`: **nunca se sube a Git**. La app lee estas variables
+   solo en `src/lib/supabase.js` mediante `import.meta.env`. Si falta alguna, arranca en modo local.
 
 5. Reinicia `npm run dev`. Ahora verás la pantalla de login: **crea tu cuenta**.
 
@@ -64,8 +67,11 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 > **Authentication → Sign In / Providers → Email** y desactiva **"Allow new users to sign up"**.
 > Así nadie más podrá registrarse en tu PACO OS.
 
-> La clave `anon` es pública por diseño: la seguridad la garantizan las políticas RLS del `schema.sql`.
-> **Nunca** pongas la clave `service_role` en la app.
+> La Publishable key (o `anon`) es pública por diseño: acaba dentro del JavaScript que descarga el navegador.
+> La seguridad la garantizan las políticas RLS del `schema.sql` (cada usuario solo puede leer y escribir sus propias filas y su carpeta de Storage).
+> **Nunca** pongas la Secret key / `service_role` en la app ni en los secretos de la web.
+
+> Si actualizas PACO OS y cambia `supabase/schema.sql`, vuelve a ejecutarlo entero: es idempotente y no borra datos.
 
 ### 3. Publicar en GitHub Pages (para usarla desde cualquier dispositivo)
 
@@ -76,7 +82,11 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
    - `VITE_SUPABASE_ANON_KEY`
 4. Cada `push` a `main` publica automáticamente la web (también puedes lanzarlo a mano en **Actions → Deploy a GitHub Pages → Run workflow**).
 5. Tu PACO OS quedará en: `https://<tu-usuario>.github.io/<nombre-del-repo>/`
-6. En Supabase, ve a **Authentication → URL Configuration** y pon esa dirección en **Site URL** (y añádela en **Redirect URLs**). Así funcionan los correos de confirmación, enlace mágico y recuperar contraseña.
+6. En Supabase, ve a **Authentication → URL Configuration**:
+   - **Site URL:** `https://<tu-usuario>.github.io/<nombre-del-repo>/`
+   - **Redirect URLs:** añade `https://<tu-usuario>.github.io/<nombre-del-repo>/**` y, para desarrollo, `http://localhost:5173/**`
+
+   Así funcionan los correos de confirmación, el enlace mágico y la recuperación de contraseña (al abrir ese enlace, PACO OS te pide la nueva contraseña). Los enlaces deben abrirse en el mismo navegador desde el que se pidieron.
 
 ### 4. Instalar como app
 

@@ -59,7 +59,7 @@ create table if not exists public.user_settings (
 -- 4. updated_at automático
 -- ---------------------------------------------------------------------
 create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql set search_path = '' as $$
 begin
   new.updated_at = now();
   return new;
@@ -92,6 +92,12 @@ drop policy if exists "settings: own row" on public.user_settings;
 create policy "settings: own row" on public.user_settings
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+-- Permisos de la API: solo usuarios con sesión iniciada (rol "authenticated").
+-- El rol "anon" (visitantes sin sesión) no puede acceder a ninguna tabla.
+-- Algunos proyectos nuevos de Supabase no conceden estos permisos por defecto.
+revoke all on public.items, public.files, public.user_settings from anon;
+grant select, insert, update, delete on public.items, public.files, public.user_settings to authenticated;
+
 -- ---------------------------------------------------------------------
 -- 6. STORAGE: bucket privado "paco-files"
 --    Cada usuario solo puede leer/escribir dentro de la carpeta <su user id>/
@@ -112,7 +118,9 @@ create policy "paco-files: insert own" on storage.objects
   for insert with check (bucket_id = 'paco-files' and (storage.foldername(name))[1] = auth.uid()::text);
 
 create policy "paco-files: update own" on storage.objects
-  for update using (bucket_id = 'paco-files' and (storage.foldername(name))[1] = auth.uid()::text);
+  for update
+  using (bucket_id = 'paco-files' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'paco-files' and (storage.foldername(name))[1] = auth.uid()::text);
 
 create policy "paco-files: delete own" on storage.objects
   for delete using (bucket_id = 'paco-files' and (storage.foldername(name))[1] = auth.uid()::text);

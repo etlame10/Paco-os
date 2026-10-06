@@ -59,7 +59,7 @@ export const localBackend = {
     },
     async signIn() {
       write('pacoos.signedOut', false)
-      listeners.forEach((l) => l(LOCAL_SESSION))
+      listeners.forEach((l) => l(LOCAL_SESSION, 'SIGNED_IN'))
     },
     async signUp() {
       return this.signIn()
@@ -71,7 +71,7 @@ export const localBackend = {
     async updatePassword() {},
     async signOut() {
       write('pacoos.signedOut', true)
-      listeners.forEach((l) => l(null))
+      listeners.forEach((l) => l(null, 'SIGNED_OUT'))
     },
   },
 

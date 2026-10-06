@@ -1,10 +1,30 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Credenciales SOLO desde variables de entorno (nunca escritas en el código):
+//   - En local: archivo .env.local (ignorado por Git, ver .env.example)
+//   - En GitHub Pages: secretos del repositorio usados por .github/workflows/deploy.yml
+// VITE_SUPABASE_ANON_KEY admite la clave "anon" clásica o la nueva Publishable Key
+// (sb_publishable_...). Ambas son públicas por diseño: la seguridad la da RLS.
+const url = (import.meta.env.VITE_SUPABASE_URL || '').trim()
+const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()
 
-// Si no hay credenciales, PACO OS arranca en "modo local" (datos en este navegador).
-export const isSupabaseConfigured = Boolean(url && anonKey && !url.includes('xxxx'))
+function isValidUrl(value) {
+  try {
+    const u = new URL(value)
+    return (u.protocol === 'https:' || u.protocol === 'http:') && !u.hostname.includes('xxxx')
+  } catch {
+    return false
+  }
+}
+
+// Si falta cualquiera de las dos variables, PACO OS arranca en "modo local" (datos en este navegador).
+export const isSupabaseConfigured = Boolean(anonKey && isValidUrl(url))
+
+if (!isSupabaseConfigured && (url || anonKey)) {
+  console.warn(
+    '[PACO OS] Configuración de Supabase incompleta o no válida: revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. Se usará el modo local.',
+  )
+}
 
 export const supabase = isSupabaseConfigured
   ? createClient(url, anonKey, {

@@ -5,6 +5,7 @@ import { UIProvider } from './context/UIContext'
 import Layout from './components/Layout'
 import { Spinner } from './components/ui'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Calendar from './pages/Calendar'
 import ModulePage from './pages/ModulePage'
@@ -12,11 +13,12 @@ import ModulesStore from './pages/ModulesStore'
 import Settings from './pages/Settings'
 
 function Gate() {
-  const { session, loading } = useAuth()
+  const { session, loading, recovery } = useAuth()
   const { loaded } = useSettings()
 
   if (loading) return <FullScreenLoader />
   if (!session) return <Login />
+  if (recovery) return <ResetPassword />
   if (!loaded) return <FullScreenLoader />
 
   return (
