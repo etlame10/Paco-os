@@ -384,7 +384,7 @@ export function createToolbox({ api, modules, getModule, fetchFile = (url) => fe
         details: [
           { label: 'Tipo', value: `${kind === 'pdf' ? 'PDF' : 'Texto'} · ${Math.max(1, Math.round((file.size || 0) / 1024))} KB` },
           { label: 'Qué se lee', value: range },
-          { label: 'Privacidad', value: 'Su texto se enviará a Gemini para responderte. El archivo no sale de tu Supabase.' },
+          { label: 'Privacidad', value: 'Su texto se enviará a la IA (Groq) para responderte. El archivo no sale de tu Supabase.' },
         ],
         run: async () => {
           const url = await api.files.getUrl(file)

@@ -116,7 +116,7 @@ const toolbox = (api) => createToolbox({ api, modules: MODULES, getModule })
   const names = [...block.matchAll(/name: '([a-z_]+)'/g)].map((m) => m[1]).sort()
   ok(JSON.stringify(names) === JSON.stringify(Object.keys(TOOL_KINDS).sort()), 'las herramientas de la Edge Function coinciden con las del navegador', names)
   ok(!/AIza[\w-]{20}|sk-ant-[\w-]{8}|sb_secret_\w{8}|eyJhbGci/.test(src), 'la Edge Function no contiene claves')
-  ok(/x-goog-api-key/.test(src) && !/[?&]key=/.test(src), 'la clave de Gemini va en cabecera, nunca en la URL')
+  ok(/authorization: `Bearer \$\{apiKey\}`/.test(src) && !/[?&]key=/.test(src) && /env\('GROQ_API_KEY'\)/.test(src), 'la clave de Groq sale del secreto GROQ_API_KEY y va en cabecera, nunca en la URL')
   ok(!/anthropic|claude/i.test(src), 'la Edge Function no usa Anthropic/Claude')
 }
 
@@ -556,9 +556,11 @@ const docToolbox = (api) =>
   ok(/const DEFAULT_DAILY_LIMIT = 1000\b/.test(src) && /PACO_AI_DAILY_LIMIT.*DEFAULT_DAILY_LIMIT/.test(src), 'límite diario por defecto: 1000')
   ok(/rpc\('paco_ai_take_interaction'/.test(src) && !/rpc\('paco_ai_take_request'/.test(src), 'la Edge Function cuenta por interacción (no por llamada al modelo)')
   ok(/create or replace function public\.paco_ai_take_interaction/.test(sql) && /for update/.test(sql) && /paco_ai_refund_interaction/.test(sql), 'schema.sql: contador atómico por interacción y devolución si falla')
-  ok(/const DEFAULT_THINKING = 'LOW'/.test(src), 'thinking LOW por defecto')
+  ok(/const DEFAULT_REASONING = 'low'/.test(src) && /reasoning_effort: effort/.test(src), 'razonamiento low por defecto (reasoning_effort de Groq)')
+  ok(/role: 'tool', tool_call_id/.test(src) && /tool_calls/.test(src) && /tool_choice: 'auto'/.test(src), 'formato de tool calling de Groq (tool_calls / role tool)')
+  ok(/status === 429/.test(src) && /retry-after/.test(src) && /MAX_RATE_WAIT_MS/.test(src), '429 por minuto de Groq: espera acotada y reintento')
   ok(/RETRY_DELAYS_MS = \[800, 2000\]/.test(src) && /TOTAL_BUDGET_MS/.test(src), 'reintentos acotados con esperas crecientes')
-  ok(/gemini-3\.8-flash/.test(src), 'modelo por defecto gemini-3.8-flash')
+  ok(/const DEFAULT_MODEL = 'openai\/gpt-oss-20b'/.test(src) && !/gemini|GEMINI_API_KEY|generativelanguage/i.test(src.replace(/\/\/.*$/gm, '')), 'modelo por defecto openai/gpt-oss-20b y sin restos de Gemini en el código')
 }
 
 // ---------- Latencia: consultas en paralelo, cambios en orden ----------

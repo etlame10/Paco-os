@@ -13,7 +13,7 @@ import { policyFor } from './permissions.js'
 
 export const MAX_STEPS = 10 // llamadas al modelo por cada mensaje del usuario
 export const MAX_WRITES_PER_TURN = 15 // cambios (crear/editar/borrar) por cada mensaje del usuario
-const MAX_RESULT_CHARS = 45000 // cabe un tramo de documento (~40.000 caracteres)
+const MAX_RESULT_CHARS = 10000 // cabe un tramo de documento (~8.000 caracteres)
 const WRITE_KINDS = new Set(['create', 'update', 'delete'])
 
 export const CONTEXT_PREFIX = '<contexto_app>'

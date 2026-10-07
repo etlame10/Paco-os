@@ -334,7 +334,7 @@ begin
 end;
 $$;
 
--- Si el primer paso de una interacción falla del todo (p. ej. Gemini no responde
+-- Si el primer paso de una interacción falla del todo (p. ej. el proveedor de IA no responde
 -- tras los reintentos), se devuelve el uso: un error no gasta cuota.
 create or replace function public.paco_ai_refund_interaction(p_user uuid, p_interaction uuid)
 returns void

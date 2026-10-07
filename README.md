@@ -20,7 +20,7 @@ Tecnología: React · Vite · JavaScript · CSS · Lucide React · Supabase (Aut
 | **Módulos** | Activa/desactiva módulos, cambia su orden en el menú y **crea módulos propios sin programar** (campos, estados, icono, color, vista). |
 | **Repeticiones** | Tareas y avisos que se repiten (cada día, entre semana, cada semana, cada mes, cada año): al completarlos se crea el siguiente con su aviso. |
 | **Notificaciones** | Avisos push en móvil y PC: tareas, exámenes, eventos del calendario y avisos personalizados. Campana 🔔 con recientes y próximos. Ver **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. |
-| **PACO AI** | Asistente integrado (Gemini): pregúntale por tu agenda, pídele que cree, cambie o borre cosas, o adjúntale un PDF para resumirlo, preguntarle o crear tareas de estudio. Antes de modificar nada te pide confirmación (permisos configurables). La clave de la IA vive solo en Supabase. Ver **[docs/PACO_AI.md](docs/PACO_AI.md)**. |
+| **PACO AI** | Asistente integrado (Groq, modelo gpt-oss-20b): pregúntale por tu agenda, pídele que cree, cambie o borre cosas, o adjúntale un PDF para resumirlo, preguntarle o crear tareas de estudio. Antes de modificar nada te pide confirmación (permisos configurables). La clave de la IA vive solo en Supabase. Ver **[docs/PACO_AI.md](docs/PACO_AI.md)**. |
 | **Ajustes** | Nombre, tema claro/oscuro/sistema, color de acento, notificaciones, exportar/importar copia de seguridad (JSON), cambiar contraseña. |
 
 Módulos incluidos de serie:
@@ -106,7 +106,7 @@ Guía paso a paso: **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. Sin ell
 
 ### 6. PACO AI (opcional)
 
-Usa Gemini API (Google), con nivel gratuito. Necesita una clave de Gemini guardada como secreto de la Edge Function `paco-ai` (nunca en GitHub ni en la web) y la sección 8 de `supabase/schema.sql`.
+Usa Groq (modelo `openai/gpt-oss-20b`), con plan gratuito. Necesita el secreto `GROQ_API_KEY` en la Edge Function `paco-ai` (nunca en GitHub ni en la web) y las secciones 8 y 9 de `supabase/schema.sql`.
 Guía, costes y seguridad: **[docs/PACO_AI.md](docs/PACO_AI.md)**. Sin configurarlo, PACO OS funciona igual.
 
 ---

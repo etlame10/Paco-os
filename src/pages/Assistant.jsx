@@ -399,7 +399,7 @@ export default function Assistant() {
         />
       )}
       <p className="muted small center ai-foot">
-        PACO AI puede equivocarse. Lo que consulta (y el texto de los documentos que autorices) se envía al proveedor de IA (Google Gemini) para responderte; la conversación solo se guarda en este dispositivo.
+        PACO AI puede equivocarse. Lo que consulta (y el texto de los documentos que autorices) se envía al proveedor de IA (Groq) para responderte; la conversación solo se guarda en este dispositivo.
       </p>
     </div>
   )

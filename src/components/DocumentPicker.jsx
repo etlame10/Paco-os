@@ -54,7 +54,7 @@ export default function DocumentPicker({ selected, onDone, onClose }) {
   return (
     <Modal title="Adjuntar documentos" onClose={onClose}>
       <p className="muted small">
-        PACO AI podrá leer el texto de los documentos que adjuntes (solo en esta conversación) y se enviará a Gemini para responderte. PDF o texto,
+        PACO AI podrá leer el texto de los documentos que adjuntes (solo en esta conversación) y se enviará a la IA (Groq) para responderte. PDF o texto,
         hasta {DOC_MAX_BYTES / 1024 / 1024} MB.
       </p>
       <button className="btn ghost sm" onClick={() => fileRef.current?.click()} disabled={uploading}>

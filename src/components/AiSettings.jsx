@@ -82,7 +82,7 @@ export default function AiSettings() {
       ))}
 
       <p className="muted small">
-        Privacidad: para responderte, lo que PACO AI consulta (elementos, fechas, nombres de archivos) se envía a Google (Gemini API), el proveedor del modelo. Del
+        Privacidad: para responderte, lo que PACO AI consulta (elementos, fechas, nombres de archivos) se envía a Groq, el proveedor del modelo. Del
         contenido de tus archivos solo se envía el texto de los documentos que adjuntes o autorices, nunca el archivo en sí. La conversación solo se guarda en este dispositivo.
       </p>
       <div className="btn-row">

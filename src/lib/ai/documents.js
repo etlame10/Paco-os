@@ -9,7 +9,8 @@
 // pdf.js se carga solo la primera vez que hace falta (no pesa en el resto de la app).
 
 export const DOC_MAX_BYTES = 25 * 1024 * 1024
-export const DOC_CHUNK_CHARS = 40000
+// ~8.000 caracteres por tramo: cabe en el límite de tokens por minuto del plan gratuito de Groq.
+export const DOC_CHUNK_CHARS = 8000
 
 const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|log)$/i
 

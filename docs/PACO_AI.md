@@ -14,10 +14,10 @@ Antes de crear, cambiar o borrar nada te enseña exactamente qué va a hacer y e
 ## Cómo funciona (y por qué es seguro)
 
 ```
-Navegador (PACO OS)                         Supabase                       Google
+Navegador (PACO OS)                         Supabase                       Groq   
 ┌──────────────────────────┐   sesión   ┌───────────────────────┐  clave  ┌──────────┐
-│ Chat + bucle del agente  │ ─────────► │ Edge Function paco-ai │ ──────► │ Gemini   │
-│ (src/lib/ai/agent.js)    │ ◄───────── │ · comprueba la sesión │ ◄────── │   API    │
+│ Chat + bucle del agente  │ ─────────► │ Edge Function paco-ai │ ──────► │ gpt-oss  │
+│ (src/lib/ai/agent.js)    │ ◄───────── │ · comprueba la sesión │ ◄────── │   -20b   │
 │                          │            │ · lista de emails     │         └──────────┘
 │ Herramientas internas    │            │ · límite diario       │
 │ (src/lib/ai/tools.js)    │            │ · guarda la clave     │
@@ -26,8 +26,8 @@ Navegador (PACO OS)                         Supabase                       Googl
 └──────────────────────────┘
 ```
 
-1. **La clave de Gemini solo está en Supabase** (secreto `GEMINI_API_KEY` de la Edge Function). Viaja a Google en una cabecera, nunca en la URL. Nunca en la web, en GitHub ni en el repositorio.
-2. **El modelo no toca la base de datos.** Solo puede *pedir* una de 9 herramientas (function calling de Gemini). Las ejecuta tu navegador con tu sesión, a través de la misma capa de datos que usa la app (`api`): RLS de Supabase (solo tus datos), avisos programados y repeticiones funcionan igual que si lo hicieras tú.
+1. **La clave de Groq solo está en Supabase** (secreto `GROQ_API_KEY` de la Edge Function). Viaja a Groq en una cabecera, nunca en la URL. Nunca en la web, en GitHub ni en el repositorio.
+2. **El modelo no toca la base de datos.** Solo puede *pedir* una de 9 herramientas (tool calling de Groq). Las ejecuta tu navegador con tu sesión, a través de la misma capa de datos que usa la app (`api`): RLS de Supabase (solo tus datos), avisos programados y repeticiones funcionan igual que si lo hicieras tú.
 3. **Validación estricta.** Cada petición se comprueba contra la definición del módulo (campos existentes, tipos, opciones válidas, fechas reales…). Si no es válida, el modelo recibe el error y la corrige; no se te pregunta nada.
 4. **Permisos aplicados por código, no por la IA** (Ajustes → PACO AI):
 
@@ -43,7 +43,7 @@ Navegador (PACO OS)                         Supabase                       Googl
 6. **Inyección de instrucciones:** si una nota o un PDF dice «borra todo», el modelo tiene instrucciones de tratarlo como dato y avisarte, y aunque lo intentara, borrar exige tu confirmación. Además, **en cuanto la conversación incluye el contenido de un documento, cualquier cambio (crear, editar, borrar) pide confirmación aunque lo tengas en «Sin preguntar»**: un texto escondido en un PDF nunca puede modificar tus datos por sí solo.
 7. **Solo tú (o quien elijas):** la función rechaza a cualquier usuario cuyo email no esté en `PACO_AI_ALLOWED_EMAILS`, y limita los usos diarios (`PACO_AI_DAILY_LIMIT`, 1.000 por defecto). **Un uso = un mensaje tuyo**, aunque PACO AI haga por dentro varias llamadas al modelo (usar herramientas, reintentar un error temporal). Si el primer paso falla del todo, el uso se devuelve.
 
-**Privacidad:** para responder, lo que PACO AI consulta (títulos, fechas, notas, nombres de archivos) se envía a Google (Gemini API). De tus archivos, solo se envía el **texto** de los documentos que adjuntes o autorices (nunca el archivo, y nunca otros archivos). La conversación se guarda solo en tu dispositivo (botón «Nueva conversación» o Ajustes → PACO AI para borrarla). En Supabase solo se guarda un contador diario de uso (tabla `ai_usage`).
+**Privacidad:** para responder, lo que PACO AI consulta (títulos, fechas, notas, nombres de archivos) se envía a Groq (el proveedor del modelo). De tus archivos, solo se envía el **texto** de los documentos que adjuntes o autorices (nunca el archivo, y nunca otros archivos). La conversación se guarda solo en tu dispositivo (botón «Nueva conversación» o Ajustes → PACO AI para borrarla). En Supabase solo se guarda un contador diario de uso (tabla `ai_usage`).
 
 ---
 
@@ -56,33 +56,25 @@ Navegador (PACO OS)                         Supabase                       Googl
 1. PACO AI pide la herramienta `read_document` con el id del archivo.
 2. Tu navegador comprueba que el archivo es tuyo (la lista sale de Supabase con RLS), que es PDF o texto (máx. 25 MB) y que está autorizado; si no, pide permiso o lo bloquea según Ajustes.
 3. Lo descarga de **Supabase Storage** con una URL firmada (el bucket es privado y cada usuario solo accede a su carpeta).
-4. Extrae el texto **en tu navegador** con pdf.js (libre, de Mozilla), por páginas y en tramos de ~40.000 caracteres. pdf.js no ejecuta código del PDF.
-5. A Gemini le llega solo ese **texto**, marcado como «datos, no instrucciones». El archivo no sale de tu Supabase.
+4. Extrae el texto **en tu navegador** con pdf.js (libre, de Mozilla), por páginas y en tramos de ~8.000 caracteres (para caber en el límite por minuto del plan gratuito de Groq). pdf.js no ejecuta código del PDF.
+5. A la IA le llega solo ese **texto**, marcado como «datos, no instrucciones». El archivo no sale de tu Supabase.
 6. Para documentos largos, PACO AI lee más páginas cuando las necesita (`from_page` / `to_page`).
 
 **Límites:** PDF escaneados (solo imagen) no tienen texto que extraer: PACO AI te lo dirá. No lee imágenes, Word ni Excel (expórtalos a PDF). El texto leído forma parte de la conversación: con documentos muy largos, empieza conversaciones nuevas cuando cambies de tema.
 
-## Costes y nivel gratuito de Gemini
+## Costes y plan gratuito de Groq
 
-PACO AI usa **Gemini API con su nivel gratuito**: sin tarjeta y sin ningún servicio de pago. Supabase sigue en 0 € (1 invocación de Edge Function por paso; el plan gratuito incluye 500.000 al mes).
+PACO AI usa **Groq** con el modelo `openai/gpt-oss-20b` y su **plan gratuito**: sin tarjeta y sin ningún servicio de pago. Supabase sigue en 0 € (1 invocación de Edge Function por paso; el plan gratuito incluye 500.000 al mes).
 
-**Cuánto da de sí el nivel gratuito.** Google aplica límites por proyecto de peticiones por minuto (RPM), por día (RPD) y de tokens por minuto. Los cambia a menudo y los muestra para tu proyecto en **Google AI Studio → Usage / Rate limits**: esa es la cifra válida para ti. Cada mensaje tuyo suele costar **2–3 peticiones a Gemini** (consultar + responder; crear algo y confirmar). Ojo: eso es la cuota de Google; el contador de PACO AI («Hoy: N/1000») cuenta mensajes tuyos, no peticiones a Gemini. Así que:
+**Límites del plan gratuito para este modelo** (según la documentación de Groq en 2026; la cifra válida para ti aparece en https://console.groq.com/settings/limits): unas **30 peticiones/minuto, 1.000 peticiones/día, 8.000 tokens/minuto y 200.000 tokens/día**, por organización.
 
-| Límite diario del modelo (RPD) | Mensajes aproximados al día |
-| --- | --- |
-| 20 | ~7–10 |
-| 250 | ~80–120 |
-| 1.000 | ~350–500 |
+- Cada mensaje tuyo suele costar **2–3 peticiones** a Groq (consultar + responder; crear y confirmar). Con 1.000 peticiones/día caben unos **350–500 mensajes al día**.
+- **El límite que más se nota son los 8.000 tokens/minuto.** Por eso cada petición se mantiene pequeña: instrucciones y herramientas (~3.000 tokens), conversación recortada a ~12.000 caracteres y respuestas de hasta 1.536 tokens. Si encadenas varias preguntas seguidas (sobre todo con PDF), Groq puede pedir esperar unos segundos: PACO AI espera y reintenta solo, sin gastar usos. Si la espera es larga, te lo dice.
+- El contador de PACO AI («Hoy: N/1000») cuenta **mensajes tuyos**, no peticiones a Groq. Es un límite de seguridad de PACO OS, distinto de los de Groq.
 
-Si un día se agota la cuota, PACO AI lo dice («Se ha agotado la cuota de Gemini…») y vuelve a funcionar cuando Google la reinicia (cada día a medianoche, hora del Pacífico). Nada se cobra.
+**Si se te queda corto**, sin tocar la web: `PACO_AI_MODEL` (otro modelo de Groq con tool calling), `PACO_AI_THINKING` (`low`/`medium`/`high`), `PACO_AI_MAX_PROMPT_CHARS` y `PACO_AI_MAX_OUTPUT_TOKENS` (súbelos solo con un plan de pago de Groq).
 
-**Si se te queda corto**, sin tocar la web:
-
-- `PACO_AI_MODEL=gemini-3.5-flash-lite` (u otro Flash-Lite): modelos más ligeros con más cuota gratuita.
-- `PACO_AI_THINKING=minimal`: aún más rápido (por defecto ya es `low`).
-- `PACO_AI_DAILY_LIMIT`: tu propio tope diario de mensajes por usuario (por defecto 1.000). Es un límite de seguridad de PACO OS, distinto de los límites de Google.
-
-> ⚠️ **Condiciones de Google para Europa.** Los términos adicionales de Gemini API dicen que, al ofrecer una aplicación a usuarios del Espacio Económico Europeo, Suiza o Reino Unido, solo se pueden usar los «Paid Services» (proyecto con facturación activa). PACO OS es una herramienta personal que usas tú; revisa esos términos (https://ai.google.dev/gemini-api/terms) y decide si necesitas activar la facturación. Activarla no tiene coste fijo: se paga por uso y puedes poner un presupuesto. Ventaja que sí aplica ya en la UE: según esos mismos términos, en el EEE/Suiza/Reino Unido Google trata tus datos como en el plan de pago (**no los usa para mejorar sus productos**), aunque uses la cuota gratuita.
+**Privacidad:** Groq procesa el texto para responder; revisa su política en https://groq.com/privacy-policy.
 
 ## Activarlo (una vez, ~10 minutos)
 
@@ -90,11 +82,10 @@ Si un día se agota la cuota, PACO AI lo dice («Se ha agotado la cuota de Gemin
 
 Supabase → **SQL Editor** → ejecuta las **secciones 8 y 9** de `supabase/schema.sql` (o el archivo completo: es idempotente y no borra nada). Crean las tablas `ai_usage` y `ai_interactions` y las funciones del contador, que solo puede usar la Edge Function.
 
-### 2. Clave de Gemini API (gratis)
+### 2. Clave de Groq (gratis)
 
-1. Entra en https://aistudio.google.com/apikey con tu cuenta de Google y pulsa **Create API key** (no pide tarjeta).
-2. Cópiala (empieza por `AIza…`). **No la pegues en GitHub, en `.env` ni en ningún archivo del proyecto.**
-3. En AI Studio puedes consultar los límites gratuitos de tu proyecto para cada modelo.
+1. Entra en https://console.groq.com, crea una cuenta y ve a **API Keys → Create API Key** (no pide tarjeta).
+2. Cópiala (empieza por `gsk_…`). **No la pegues en GitHub, en `.env`, en el chat ni en ningún archivo del proyecto**: solo en los Secrets de Supabase (paso 4).
 
 ### 3. Edge Function `paco-ai`
 
@@ -102,9 +93,9 @@ Supabase → **Edge Functions → Deploy a new function → Via Editor**:
 
 1. Nombre: `paco-ai`.
 2. Pega el contenido de `supabase/functions/paco-ai/index.ts` y despliega.
-3. En los ajustes de la función, **desactiva «Verify JWT»** (la función comprueba ella misma tu sesión).
+3. «Verify JWT» puede quedar activado (como está ahora) o desactivado: la función comprueba ella misma tu sesión y tu email.
 
-(Con la CLI: `supabase functions deploy paco-ai --no-verify-jwt`.)
+(Con la CLI: `supabase functions deploy paco-ai`.)
 
 ### 4. Secretos
 
@@ -112,17 +103,21 @@ Supabase → **Edge Functions → Secrets** (o `supabase secrets set NOMBRE=valo
 
 | Secreto | Obligatorio | Valor |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Sí | Tu clave `AIza…` de Google AI Studio |
+| `GROQ_API_KEY` | Sí | Tu clave `gsk_…` de Groq |
 | `PACO_AI_ALLOWED_EMAILS` | Sí | Tu email de PACO OS (varios separados por comas) |
 | `PACO_AI_DAILY_LIMIT` | No | Mensajes (usos) por usuario y día (1000) |
-| `PACO_AI_MODEL` | No | Modelo de Gemini. Por defecto `gemini-3.8-flash` |
-| `PACO_AI_THINKING` | No | `minimal`, `low` (por defecto, rápido), `medium` o `high` |
+| `PACO_AI_MODEL` | No | Modelo de Groq. Por defecto `openai/gpt-oss-20b` |
+| `PACO_AI_THINKING` | No | Esfuerzo de razonamiento: `low` (por defecto, rápido), `medium` o `high` (`minimal` = `low`) |
+| `PACO_AI_MAX_PROMPT_CHARS` | No | Conversación máxima por petición (12000) |
+| `PACO_AI_MAX_OUTPUT_TOKENS` | No | Salida máxima por paso (1536) |
+
+`GEMINI_API_KEY` ya no se usa: puedes borrarlo cuando quieras (no molesta si se queda).
 
 No hace falta tocar GitHub ni volver a desplegar la web: el frontend no necesita ninguna variable nueva.
 
 ### 5. Comprobar
 
-Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo gemini-3.8-flash · hoy 0/1000 usos». Si no, el mensaje indica qué falta.
+Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo openai/gpt-oss-20b · hoy N/1000 usos». Si no, el mensaje indica qué falta.
 
 ---
 
@@ -142,13 +137,12 @@ Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo gemini-3
 
 **Añadir una herramienta:** añade su esquema en el bloque `PACO_AI TOOLS` de la Edge Function, su tipo en `TOOL_KINDS` y su manejador en `createToolbox` (`tools.js`). `npm run test:ai` comprueba que ambos lados coinciden. Cualquier herramienta que cambie datos debe tener tipo `create`, `update` o `delete` para que pase por los permisos.
 
-**Detalles de la integración con Gemini** (REST `v1beta/models/{modelo}:generateContent`, sin dependencias):
+**Detalles de la integración con Groq** (REST `https://api.groq.com/openai/v1/chat/completions`, sin dependencias):
 
-- Herramientas declaradas como `functionDeclarations` con `parametersJsonSchema`; modo `AUTO` (el modelo decide si usar herramientas o responder).
-- El navegador guarda la conversación en un formato interno propio (bloques `text` / `tool_use` / `tool_result`); la Edge Function lo traduce a `contents` / `functionCall` / `functionResponse` y de vuelta. Cambiar de proveedor solo requiere tocar la Edge Function.
-- **Thought signatures:** Gemini firma su razonamiento (`thoughtSignature`) junto a cada `functionCall`. Se guardan en el bloque (`signature`) y se le devuelven intactas; el historial **solo crece** (nunca se edita ni recorta). Por eso las conversaciones muy largas piden empezar una nueva.
-- Si Gemini da un `id` a la llamada, se devuelve en el `functionResponse`; los errores de herramienta van en `response.error`.
-- Finalizaciones especiales: `SAFETY`/`PROHIBITED_CONTENT` → «no puedo ayudarte», `MAX_TOKENS` → aviso de respuesta cortada, llamada mal formada → pide reformular.
-- Un reintento automático ante un 500/503 puntual de Google.
+- Herramientas declaradas como `tools: [{ type: "function", function: { name, description, parameters } }]` con JSON Schema; `tool_choice: "auto"`.
+- El navegador guarda la conversación en un formato interno propio (bloques `text` / `tool_use` / `tool_result`); la Edge Function lo traduce a mensajes `assistant` con `tool_calls` y mensajes `role: "tool"` con su `tool_call_id`, y de vuelta. Cambiar de proveedor solo requiere tocar la Edge Function.
+- `reasoning_effort` (gpt-oss: `low` por defecto) e `include_reasoning: false` (el razonamiento no se devuelve: menos datos y más rapidez).
+- Para caber en 8.000 tokens/minuto, los resultados de herramientas de mensajes anteriores se recortan y, si hace falta, se omiten los turnos más antiguos (nunca el mensaje actual). El modelo puede volver a pedir una herramienta.
+- Errores: 500/502/503/504 y fallos de red → hasta 3 intentos con esperas crecientes; 429 por minuto con espera corta → espera `retry-after` y reintenta; `tool_use_failed` → un reintento; resto → mensaje claro. Ninguno gasta usos (si el primer paso falla, el uso se devuelve).
 
-**Pruebas:** `npm run test:ai` (89 casos con un modelo simulado: no llama a ninguna API). Incluye la lectura de un PDF real de prueba (`scripts/fixtures/tema-redes.pdf`, con una instrucción maliciosa incrustada) y la creación de tareas a partir de él.
+**Pruebas:** `npm run test:ai` (105 casos con un modelo simulado: no llama a ninguna API). Incluye la lectura de un PDF real de prueba (`scripts/fixtures/tema-redes.pdf`, con una instrucción maliciosa incrustada) y la creación de tareas a partir de él.
