@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Los CSV con datos reales son tuyos: no se suben al repositorio.
+data/csv/*.csv
