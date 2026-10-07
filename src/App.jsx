@@ -11,6 +11,7 @@ import Calendar from './pages/Calendar'
 import ModulePage from './pages/ModulePage'
 import ModulesStore from './pages/ModulesStore'
 import Settings from './pages/Settings'
+import Assistant from './pages/Assistant'
 import ConfigError from './pages/ConfigError'
 import { supabaseConfigError } from './lib/supabase'
 
@@ -28,6 +29,7 @@ function Gate() {
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="calendario" element={<Calendar />} />
+        <Route path="ai" element={<Assistant />} />
         <Route path="m/:moduleId" element={<ModulePage />} />
         <Route path="modulos" element={<ModulesStore />} />
         <Route path="ajustes" element={<Settings />} />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import NotificationSettings from '../components/NotificationSettings'
+import AiSettings from '../components/AiSettings'
 import { useInstallPrompt } from '../hooks/useInstallPrompt'
 import { Settings as SettingsIcon, Sun, Moon, Laptop, Download, Upload, LogOut, KeyRound, Cloud, HardDrive, Smartphone } from 'lucide-react'
 import ModuleHeader from '../components/ModuleHeader'
@@ -117,6 +118,8 @@ export default function Settings() {
       </section>
 
       <NotificationSettings />
+
+      <AiSettings />
 
       <section className="card settings-section">
         <h3 className="section-title">Datos</h3>

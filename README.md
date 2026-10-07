@@ -20,6 +20,7 @@ Tecnología: React · Vite · JavaScript · CSS · Lucide React · Supabase (Aut
 | **Módulos** | Activa/desactiva módulos, cambia su orden en el menú y **crea módulos propios sin programar** (campos, estados, icono, color, vista). |
 | **Repeticiones** | Tareas y avisos que se repiten (cada día, entre semana, cada semana, cada mes, cada año): al completarlos se crea el siguiente con su aviso. |
 | **Notificaciones** | Avisos push en móvil y PC: tareas, exámenes, eventos del calendario y avisos personalizados. Campana 🔔 con recientes y próximos. Ver **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. |
+| **PACO AI** | Asistente integrado: pregúntale por tu agenda o pídele que cree, cambie o borre cosas. Antes de modificar nada te pide confirmación (permisos configurables). La clave de la IA vive solo en Supabase. Ver **[docs/PACO_AI.md](docs/PACO_AI.md)**. |
 | **Ajustes** | Nombre, tema claro/oscuro/sistema, color de acento, notificaciones, exportar/importar copia de seguridad (JSON), cambiar contraseña. |
 
 Módulos incluidos de serie:
@@ -103,6 +104,11 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 Necesitan unos pasos únicos en Supabase (tablas, Edge Function y tarea programada) y la variable `VITE_VAPID_PUBLIC_KEY` en GitHub.
 Guía paso a paso: **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. Sin ellos, PACO OS funciona igual y los avisos se ven en la campana.
 
+### 6. PACO AI (opcional, de pago por uso)
+
+Necesita una clave de la API de Claude guardada como secreto de la Edge Function `paco-ai` (nunca en GitHub ni en la web) y la sección 8 de `supabase/schema.sql`.
+Guía, costes y seguridad: **[docs/PACO_AI.md](docs/PACO_AI.md)**. Sin configurarlo, PACO OS funciona igual.
+
 ---
 
 ## Estructura del proyecto
@@ -112,10 +118,11 @@ paco-os/
 ├─ .github/workflows/deploy.yml   # Publicación automática en GitHub Pages
 ├─ supabase/schema.sql            # Tablas, seguridad RLS y bucket de archivos
 ├─ supabase/cron.sql              # Envío automático de notificaciones (Supabase Cron)
-├─ supabase/functions/            # Edge Function send-notifications (Web Push)
+├─ supabase/functions/            # Edge Functions: send-notifications (Web Push) y paco-ai (IA)
 ├─ docs/MODULOS.md                # Cómo crear módulos nuevos
 ├─ docs/NOTIFICACIONES.md         # Cómo activar y ampliar las notificaciones
-├─ scripts/                       # Pruebas: test-smart.mjs (captura y repeticiones), test-webpush.mjs
+├─ docs/PACO_AI.md                # Asistente PACO AI: activación, costes y seguridad
+├─ scripts/                       # Pruebas: test-smart.mjs, test-ai.mjs (PACO AI), test-webpush.mjs
 ├─ public/                        # Iconos, manifest y service worker (sw.js)
 └─ src/
    ├─ main.jsx · App.jsx          # Arranque y rutas (HashRouter)
@@ -124,6 +131,7 @@ paco-os/
    │  ├─ supabase.js              # Cliente Supabase
    │  ├─ notifications/           # Reglas, sincronización y push de los avisos
    │  ├─ smart/                   # Captura en lenguaje natural y repeticiones
+   │  ├─ ai/                      # PACO AI: herramientas, permisos y bucle del agente
    │  ├─ items.js · utils.js · icons.js
    ├─ context/                    # Sesión, ajustes/módulos activos, avisos y confirmaciones
    ├─ hooks/useItems.js           # CRUD genérico con actualizaciones optimistas
@@ -132,7 +140,7 @@ paco-os/
    │  ├─ definitions/             # ← UN ARCHIVO POR MÓDULO
    │  └─ views/                   # Vistas: genérica (CollectionView), Tareas, Notas, Archivos
    ├─ components/                 # Layout, modal, formularios, buscador, constructor de módulos…
-   ├─ pages/                      # Inicio, Calendario, Módulos, Ajustes, Login
+   ├─ pages/                      # Inicio, Calendario, PACO AI, Módulos, Ajustes, Login
    └─ styles/global.css           # Tema claro/oscuro y diseño responsive
 ```
 
@@ -156,5 +164,6 @@ Guía completa: **[docs/MODULOS.md](docs/MODULOS.md)**.
 | `npm run preview` | Sirve `dist/` para probarla |
 | `npm test` | Ejecuta todas las pruebas |
 | `npm run test:smart` | Prueba la captura inteligente y las repeticiones |
+| `npm run test:ai` | Prueba las herramientas, permisos y el agente de PACO AI (sin llamar a la API) |
 | `npm run test:push` | Comprueba el cifrado Web Push de la Edge Function |
 | `npx web-push generate-vapid-keys` | Genera las claves VAPID para las notificaciones |

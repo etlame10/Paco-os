@@ -195,3 +195,71 @@ revoke all on public.push_subscriptions, public.notifications from anon;
 grant select, insert, update, delete on public.push_subscriptions, public.notifications to authenticated;
 -- La Edge Function "send-notifications" usa el rol de servicio dentro de Supabase
 -- (nunca expuesto en la web) para leer los avisos pendientes de todos los usuarios.
+
+-- =====================================================================
+-- 8. PACO AI (ver docs/PACO_AI.md)
+--    Solo añade una tabla de uso y dos funciones: no modifica ni borra nada.
+--    La conversación NO se guarda en la base de datos (queda en el dispositivo).
+-- =====================================================================
+
+-- Uso diario de PACO AI por usuario (límite de peticiones y tokens consumidos).
+create table if not exists public.ai_usage (
+  user_id       uuid not null references auth.users (id) on delete cascade,
+  day           date not null,
+  requests      integer not null default 0,
+  input_tokens  bigint not null default 0,
+  output_tokens bigint not null default 0,
+  updated_at    timestamptz not null default now(),
+  primary key (user_id, day)
+);
+
+alter table public.ai_usage enable row level security;
+
+-- Cada usuario puede VER su propio uso; solo la Edge Function "paco-ai" lo modifica.
+drop policy if exists "ai_usage: read own" on public.ai_usage;
+create policy "ai_usage: read own" on public.ai_usage
+  for select using (auth.uid() = user_id);
+
+revoke all on public.ai_usage from anon, authenticated;
+grant select on public.ai_usage to authenticated;
+grant select, insert, update, delete on public.ai_usage to service_role;
+
+-- Suma una petición si no se ha llegado al límite. Devuelve el nuevo total del día,
+-- o NULL si ya se alcanzó (de forma atómica, aunque lleguen varias a la vez).
+create or replace function public.paco_ai_take_request(p_user uuid, p_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  n integer;
+begin
+  insert into public.ai_usage as u (user_id, day, requests)
+  values (p_user, (now() at time zone 'Europe/Madrid')::date, 1)
+  on conflict (user_id, day) do update
+    set requests = u.requests + 1, updated_at = now()
+    where u.requests < p_limit
+  returning u.requests into n;
+  return n;
+end;
+$$;
+
+create or replace function public.paco_ai_add_tokens(p_user uuid, p_input bigint, p_output bigint)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.ai_usage
+     set input_tokens = input_tokens + greatest(p_input, 0),
+         output_tokens = output_tokens + greatest(p_output, 0),
+         updated_at = now()
+   where user_id = p_user and day = (now() at time zone 'Europe/Madrid')::date;
+$$;
+
+-- Solo el rol de servicio (la Edge Function) puede llamarlas.
+revoke all on function public.paco_ai_take_request(uuid, integer) from public, anon, authenticated;
+revoke all on function public.paco_ai_add_tokens(uuid, bigint, bigint) from public, anon, authenticated;
+grant execute on function public.paco_ai_take_request(uuid, integer) to service_role;
+grant execute on function public.paco_ai_add_tokens(uuid, bigint, bigint) to service_role;

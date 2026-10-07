@@ -65,6 +65,9 @@ export const supabaseBackend = {
   },
 
   items: {
+    async get(id) {
+      return check(await supabase.from('items').select('*').eq('id', id).maybeSingle())
+    },
     async list({ module, orderBy = 'created_at', ascending = false } = {}) {
       let q = supabase.from('items').select('*')
       if (module) q = q.eq('module', module)
@@ -258,4 +261,33 @@ export const supabaseBackend = {
       return data
     },
   },
+
+  // PACO AI: cada paso de la conversación pasa por la Edge Function "paco-ai",
+  // que guarda la clave de la IA. Las herramientas se ejecutan aquí (src/lib/ai).
+  ai: {
+    available: true,
+    async status() {
+      return invokeAi({ action: 'status' })
+    },
+    async chat(messages) {
+      return invokeAi({ action: 'chat', messages })
+    },
+  },
+}
+
+async function invokeAi(body) {
+  const { data, error } = await supabase.functions.invoke('paco-ai', { body })
+  if (!error) return data
+  let detail = null
+  try {
+    detail = await error.context?.json()
+  } catch {
+    /* sin detalle */
+  }
+  const e = new Error(
+    detail?.error ||
+      'No se pudo contactar con PACO AI. ¿Está publicada la función "paco-ai" en Supabase? (ver docs/PACO_AI.md)',
+  )
+  e.code = detail?.code || (error.context?.status ? 'http_' + error.context.status : 'unreachable')
+  throw e
 }

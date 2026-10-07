@@ -77,6 +77,9 @@ export const localBackend = {
   },
 
   items: {
+    async get(id) {
+      return read(KEY_ITEMS, []).find((i) => i.id === id) ?? null
+    },
     async list({ module, orderBy = 'created_at', ascending = false } = {}) {
       const all = read(KEY_ITEMS, [])
       return sortBy(module ? all.filter((i) => i.module === module) : all, orderBy, ascending)
@@ -262,6 +265,17 @@ export const localBackend = {
     async removeByEndpoint() {},
     async sendTest() {
       throw new Error('Las notificaciones push necesitan Supabase configurado.')
+    },
+  },
+
+  // PACO AI necesita la Edge Function de Supabase (la clave de la IA nunca está en el navegador).
+  ai: {
+    available: false,
+    async status() {
+      return { configured: false, allowed: false, local: true }
+    },
+    async chat() {
+      throw new Error('PACO AI necesita Supabase configurado (ver docs/PACO_AI.md).')
     },
   },
 }

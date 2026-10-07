@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, Puzzle, Settings, Search, Menu, X, HardDrive, LogOut } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, Puzzle, Settings, Search, Menu, X, HardDrive, LogOut, Sparkles } from 'lucide-react'
 import { Logo } from './Logo'
 import CommandPalette from './CommandPalette'
 import NotificationBell from './NotificationBell'
@@ -54,6 +54,9 @@ export default function Layout() {
       </NavLink>
       <NavLink to="/calendario" className="nav-link">
         <CalendarDays size={18} /> <span>Calendario</span>
+      </NavLink>
+      <NavLink to="/ai" className="nav-link">
+        <Sparkles size={18} /> <span>PACO AI</span>
       </NavLink>
       <div className="nav-label">Módulos</div>
       {enabledModules.map((m) => (
@@ -110,6 +113,9 @@ export default function Layout() {
             <span>PACO OS</span>
           </NavLink>
           <div className="mobile-top-actions">
+            <NavLink to="/ai" className="icon-btn" aria-label="PACO AI">
+              <Sparkles size={20} />
+            </NavLink>
             <NotificationBell />
             <button className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="Buscar">
               <Search size={20} />
