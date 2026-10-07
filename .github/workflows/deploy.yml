@@ -26,6 +26,10 @@ env:
   # La URL del proyecto no es secreta. Se puede sobrescribir con el secreto o la variable VITE_SUPABASE_URL.
   VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://pwzkkmqtjkzvskwlopwh.supabase.co' }}
   VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+  # Clave PÚBLICA VAPID para las notificaciones push (opcional; es pública por diseño).
+  # Créala como variable (Settings > Secrets and variables > Actions > Variables) o como secreto.
+  # La clave PRIVADA nunca va aquí: solo en los secretos de la Edge Function de Supabase.
+  VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY || secrets.VITE_VAPID_PUBLIC_KEY }}
 
 jobs:
   build:
@@ -64,6 +68,18 @@ jobs:
             https://*.supabase.co|https://*.supabase.co/) echo "OK: VITE_SUPABASE_URL = $VITE_SUPABASE_URL" ;;
             *) echo "::error title=URL no válida::VITE_SUPABASE_URL debe ser https://<proyecto>.supabase.co"; exit 1 ;;
           esac
+          vapid="$(printf '%s' "$VITE_VAPID_PUBLIC_KEY" | tr -d '[:space:]')"
+          if [ -z "$vapid" ]; then
+            echo "::warning title=Notificaciones push sin configurar::Falta VITE_VAPID_PUBLIC_KEY. PACO OS funcionará igual, pero sin notificaciones push (ver docs/NOTIFICACIONES.md)."
+          elif printf '%s' "$vapid" | grep -Eq '^B[A-Za-z0-9_-]{86}$'; then
+            echo "OK: VITE_VAPID_PUBLIC_KEY es una clave pública VAPID."
+          elif [ ${#vapid} -eq 43 ]; then
+            echo "::error title=Clave VAPID PRIVADA detectada::VITE_VAPID_PUBLIC_KEY parece la clave PRIVADA (43 caracteres). Usa la Public Key; la privada solo va en los secretos de la Edge Function."
+            exit 1
+          else
+            echo "::error title=Clave VAPID no válida::VITE_VAPID_PUBLIC_KEY debe ser la Public Key de 'npx web-push generate-vapid-keys' (87 caracteres, empieza por B)."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:

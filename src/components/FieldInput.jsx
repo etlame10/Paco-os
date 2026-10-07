@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { Rating } from './ui'
 
 // Renderiza el control adecuado según el tipo de campo de un módulo.
-// Tipos: text, textarea, number, money, date, select, rating, url, checkbox, tags, progress
+// Tipos: text, textarea, number, money, date, time, datetime, select, rating, url, checkbox, tags, progress
 export default function FieldInput({ field, value, onChange, autoFocus }) {
   const common = {
     id: `f-${field.key}`,
@@ -34,6 +34,10 @@ export default function FieldInput({ field, value, onChange, autoFocus }) {
       )
     case 'date':
       return <input {...common} type="date" value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
+    case 'time':
+      return <input {...common} type="time" value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
+    case 'datetime':
+      return <input {...common} type="datetime-local" value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
     case 'url':
       return <input {...common} type="url" inputMode="url" placeholder={field.placeholder || 'https://'} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
     case 'select':

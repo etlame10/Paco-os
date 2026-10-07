@@ -42,7 +42,7 @@ export default function CommandPalette({ open, onClose }) {
       ...enabledModules.map((m) => ({ id: m.id, label: m.name, module: m, to: `/m/${m.id}` })),
       ...enabledModules
         .filter((m) => m.usesItems !== false)
-        .map((m) => ({ id: `new-${m.id}`, label: `Nuevo ${m.itemName || 'elemento'} en ${m.name}`, icon: Plus, to: `/m/${m.id}?new=1` })),
+        .map((m) => ({ id: `new-${m.id}`, label: `${/a$/.test(m.itemName || '') ? 'Nueva' : 'Nuevo'} ${m.itemName || 'elemento'} en ${m.name}`, icon: Plus, to: `/m/${m.id}?new=1` })),
       { id: 'mods', label: 'Módulos', icon: Puzzle, to: '/modulos' },
       { id: 'settings', label: 'Ajustes', icon: Settings, to: '/ajustes' },
     ]

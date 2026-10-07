@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, CalendarDays, Puzzle, Settings, Search, Menu, X, HardDrive, LogOut } from 'lucide-react'
 import { Logo } from './Logo'
 import CommandPalette from './CommandPalette'
+import NotificationBell from './NotificationBell'
+import { useNotificationRuntime } from '../hooks/useLocalNotifier'
 import { useSettings } from '../context/SettingsContext'
 import { useAuth } from '../context/AuthContext'
 import { api, isLocalMode } from '../lib/api'
@@ -14,6 +16,9 @@ export default function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [drawer, setDrawer] = useState(false)
   const location = useLocation()
+
+  // Avisos en modo local y mantenimiento de la suscripción push en Supabase.
+  useNotificationRuntime(settings)
 
   useEffect(() => setDrawer(false), [location.pathname])
 
@@ -58,6 +63,7 @@ export default function Layout() {
             <Logo size={30} />
             <span>PACO OS</span>
           </NavLink>
+          <NotificationBell className="hide-sm" />
           <button className="icon-btn show-sm" onClick={() => setDrawer(false)} aria-label="Cerrar menú">
             <X size={18} />
           </button>
@@ -91,9 +97,12 @@ export default function Layout() {
             <Logo size={26} />
             <span>PACO OS</span>
           </NavLink>
-          <button className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="Buscar">
-            <Search size={20} />
-          </button>
+          <div className="mobile-top-actions">
+            <NotificationBell />
+            <button className="icon-btn" onClick={() => setPaletteOpen(true)} aria-label="Buscar">
+              <Search size={20} />
+            </button>
+          </div>
         </header>
         <main className="content">
           <Outlet />

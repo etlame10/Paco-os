@@ -11,6 +11,7 @@ const FIELD_TYPES = [
   { value: 'number', label: 'Número' },
   { value: 'money', label: 'Dinero (€)' },
   { value: 'date', label: 'Fecha' },
+  { value: 'time', label: 'Hora' },
   { value: 'select', label: 'Lista de opciones' },
   { value: 'rating', label: 'Puntuación (estrellas)' },
   { value: 'progress', label: 'Progreso (%)' },

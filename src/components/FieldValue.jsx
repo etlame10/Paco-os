@@ -23,6 +23,8 @@ export default function FieldValue({ field, value, color }) {
           {field.label}: {formatDate(value)}
         </span>
       )
+    case 'time':
+      return <span className="meta">🕒 {value}</span>
     case 'rating':
       return Number(value) > 0 ? <Rating value={Number(value)} size={13} /> : null
     case 'progress':

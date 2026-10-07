@@ -169,4 +169,93 @@ export const supabaseBackend = {
       check(await supabase.from('user_settings').upsert({ user_id, settings }))
     },
   },
+
+  // Avisos programados (tabla notifications). Los envía la Edge Function "send-notifications".
+  notifications: {
+    async listUpcoming(limit = 30) {
+      return check(
+        await supabase
+          .from('notifications')
+          .select('*')
+          .in('status', ['pending', 'sending', 'failed'])
+          .order('remind_at', { ascending: true })
+          .limit(limit),
+      )
+    },
+    async listRecent(limit = 30) {
+      return check(
+        await supabase
+          .from('notifications')
+          .select('*')
+          .in('status', ['sent', 'skipped'])
+          .order('sent_at', { ascending: false, nullsFirst: false })
+          .limit(limit),
+      )
+    },
+    async listForItem(itemId) {
+      return check(await supabase.from('notifications').select('*').eq('item_id', itemId))
+    },
+    async create(row) {
+      return check(await supabase.from('notifications').insert(row).select().single())
+    },
+    async update(id, patch) {
+      return check(await supabase.from('notifications').update(patch).eq('id', id).select().single())
+    },
+    async remove(id) {
+      check(await supabase.from('notifications').delete().eq('id', id))
+    },
+    async markAllRead() {
+      check(
+        await supabase
+          .from('notifications')
+          .update({ read_at: new Date().toISOString() })
+          .eq('status', 'sent')
+          .is('read_at', null),
+      )
+    },
+  },
+
+  // Dispositivos suscritos a Web Push (tabla push_subscriptions).
+  push: {
+    available: true,
+    async listSubscriptions() {
+      return check(await supabase.from('push_subscriptions').select('*').order('created_at', { ascending: false }))
+    },
+    async saveSubscription({ endpoint, p256dh, auth, device_name, user_agent }) {
+      const user_id = await currentUserId()
+      return check(
+        await supabase
+          .from('push_subscriptions')
+          .upsert(
+            { user_id, endpoint, p256dh, auth, device_name, user_agent, last_seen_at: new Date().toISOString() },
+            { onConflict: 'endpoint' },
+          )
+          .select()
+          .single(),
+      )
+    },
+    async removeSubscription(id) {
+      check(await supabase.from('push_subscriptions').delete().eq('id', id))
+    },
+    async removeByEndpoint(endpoint) {
+      check(await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint))
+    },
+    // Envía un aviso de prueba solo a los dispositivos del usuario con sesión iniciada.
+    async sendTest() {
+      const { data, error } = await supabase.functions.invoke('send-notifications', { body: { action: 'test' } })
+      if (error) {
+        let detail = ''
+        try {
+          detail = (await error.context?.json())?.error || ''
+        } catch {
+          /* sin detalle */
+        }
+        throw new Error(
+          detail ||
+            'No se pudo contactar con la función "send-notifications". ¿Está publicada en Supabase? (ver docs/NOTIFICACIONES.md)',
+        )
+      }
+      return data
+    },
+  },
 }

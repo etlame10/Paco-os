@@ -18,11 +18,12 @@ Tecnología: React · Vite · JavaScript · CSS · Lucide React · Supabase (Aut
 | **Calendario** | Vista mensual unificada con todo lo que tiene fecha en cualquier módulo (tareas, exámenes, entregas, viajes…). |
 | **Buscador global** | `Ctrl + K` (o `⌘ + K`): ir a cualquier módulo, crear elementos y buscar en todo tu contenido. |
 | **Módulos** | Activa/desactiva módulos, cambia su orden en el menú y **crea módulos propios sin programar** (campos, estados, icono, color, vista). |
-| **Ajustes** | Nombre, tema claro/oscuro/sistema, color de acento, exportar/importar copia de seguridad (JSON), cambiar contraseña. |
+| **Notificaciones** | Avisos push en móvil y PC: tareas, exámenes, eventos del calendario y avisos personalizados. Campana 🔔 con recientes y próximos. Ver **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. |
+| **Ajustes** | Nombre, tema claro/oscuro/sistema, color de acento, notificaciones, exportar/importar copia de seguridad (JSON), cambiar contraseña. |
 
 Módulos incluidos de serie:
 
-- **Activos por defecto:** Tareas · Estudios · Notas · Archivos
+- **Activos por defecto:** Tareas · Avisos · Estudios · Notas · Archivos
 - **Disponibles para activar:** Proyectos (kanban) · Ideas · Rutinas (con rachas) · Películas y series · Juegos · Compras · Finanzas (balance mensual) · Viajes · Mi PC · Enlaces
 
 Cada módulo de tipo colección tiene vista de **tarjetas, lista o tablero kanban**, búsqueda, filtros por estado, ordenación, fijado en inicio y acciones rápidas.
@@ -94,6 +95,12 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 
 - **Móvil:** abre la web → Safari: botón compartir → *Añadir a pantalla de inicio* · Chrome: menú ⋮ → *Instalar app*.
 - **PC:** en Chrome/Edge, icono de instalar en la barra de direcciones.
+- En iPhone/iPad las notificaciones solo funcionan con la app instalada así (iOS 16.4 o superior).
+
+### 5. Notificaciones push (opcional, gratis)
+
+Necesitan unos pasos únicos en Supabase (tablas, Edge Function y tarea programada) y la variable `VITE_VAPID_PUBLIC_KEY` en GitHub.
+Guía paso a paso: **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. Sin ellos, PACO OS funciona igual y los avisos se ven en la campana.
 
 ---
 
@@ -103,13 +110,18 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 paco-os/
 ├─ .github/workflows/deploy.yml   # Publicación automática en GitHub Pages
 ├─ supabase/schema.sql            # Tablas, seguridad RLS y bucket de archivos
+├─ supabase/cron.sql              # Envío automático de notificaciones (Supabase Cron)
+├─ supabase/functions/            # Edge Function send-notifications (Web Push)
 ├─ docs/MODULOS.md                # Cómo crear módulos nuevos
-├─ public/                        # Icono y manifest (instalable como app)
+├─ docs/NOTIFICACIONES.md         # Cómo activar y ampliar las notificaciones
+├─ scripts/test-webpush.mjs       # Prueba del cifrado Web Push (npm run test:push)
+├─ public/                        # Iconos, manifest y service worker (sw.js)
 └─ src/
    ├─ main.jsx · App.jsx          # Arranque y rutas (HashRouter)
    ├─ lib/
    │  ├─ api/                     # Capa de datos: supabaseBackend y localBackend (misma interfaz)
    │  ├─ supabase.js              # Cliente Supabase
+   │  ├─ notifications/           # Reglas, sincronización y push de los avisos
    │  ├─ items.js · utils.js · icons.js
    ├─ context/                    # Sesión, ajustes/módulos activos, avisos y confirmaciones
    ├─ hooks/useItems.js           # CRUD genérico con actualizaciones optimistas
@@ -140,3 +152,5 @@ Guía completa: **[docs/MODULOS.md](docs/MODULOS.md)**.
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Genera la versión de producción en `dist/` |
 | `npm run preview` | Sirve `dist/` para probarla |
+| `npm run test:push` | Comprueba el cifrado Web Push de la Edge Function |
+| `npx web-push generate-vapid-keys` | Genera las claves VAPID para las notificaciones |

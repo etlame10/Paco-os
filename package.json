@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:push": "node scripts/test-webpush.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -18,6 +19,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.3"
+    "http_ece": "^1.2.1",
+    "jose": "^6.2.12",
+    "vite": "^8.3.3",
+    "web-push": "^3.6.7"
   }
 }

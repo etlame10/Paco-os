@@ -1,7 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../lib/api'
+import { api, rawBackend } from '../lib/api'
 import { useAuth } from './AuthContext'
 import { STATIC_MODULES, DEFAULT_ENABLED, buildCustomModule } from '../modules/registry'
+import { getNotificationPrefs } from '../lib/notifications/prefs'
+import { resyncAllNotifications, setNotificationContext } from '../lib/notifications/sync'
+
+// Sube este número si cambian las reglas de avisos y hay que reprogramar todo una vez.
+const NOTIFICATIONS_VERSION = 1
 
 const SettingsContext = createContext(null)
 
@@ -109,9 +114,57 @@ export function SettingsProvider({ children }) {
     [enabledModules, update],
   )
 
+  // ---- Notificaciones ----
+  // La capa de datos necesita conocer los módulos y ajustes para programar avisos.
+  setNotificationContext({ getModule, settings })
+
+  const notificationPrefs = useMemo(() => getNotificationPrefs(settings), [settings])
+  const prefsKey = JSON.stringify(notificationPrefs)
+  const lastPrefsKey = useRef(null)
+
+  useEffect(() => {
+    if (!loaded || !user) return
+    // Primera carga tras activar el sistema de avisos: programa los avisos de los elementos
+    // que ya existían (solo crea avisos, no modifica ningún elemento).
+    if (settings.notificationsVersion !== NOTIFICATIONS_VERSION) {
+      lastPrefsKey.current = prefsKey
+      resyncAllNotifications(rawBackend)
+        .then(() => update({ notificationsVersion: NOTIFICATIONS_VERSION }))
+        .catch((e) => console.warn('[PACO OS] No se pudieron programar los avisos', e))
+      return
+    }
+    if (lastPrefsKey.current === null) {
+      lastPrefsKey.current = prefsKey
+      return
+    }
+    if (lastPrefsKey.current === prefsKey) return
+    // Cambió una hora por defecto, la zona horaria...: se recalculan los avisos futuros.
+    const t = setTimeout(() => {
+      lastPrefsKey.current = prefsKey
+      resyncAllNotifications(rawBackend).catch((e) => console.warn('[PACO OS] No se pudieron recalcular los avisos', e))
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [loaded, user, prefsKey, settings.notificationsVersion, update])
+
+  const updateNotificationPrefs = useCallback(
+    (patch) => update((prev) => ({ notifications: { ...getNotificationPrefs(prev), ...patch } })),
+    [update],
+  )
+
   return (
     <SettingsContext.Provider
-      value={{ settings, loaded, update, modules, enabledModules, getModule, toggleModule, moveModule }}
+      value={{
+        settings,
+        loaded,
+        update,
+        modules,
+        enabledModules,
+        getModule,
+        toggleModule,
+        moveModule,
+        notificationPrefs,
+        updateNotificationPrefs,
+      }}
     >
       {children}
     </SettingsContext.Provider>

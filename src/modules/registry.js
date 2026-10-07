@@ -10,7 +10,7 @@ const files = import.meta.glob('./definitions/*.js', { eager: true })
 
 // Orden por defecto en el menú (los no listados van al final, por nombre).
 const DEFAULT_ORDER = [
-  'tareas', 'estudios', 'notas', 'archivos', 'proyectos', 'ideas', 'rutinas',
+  'tareas', 'avisos', 'estudios', 'notas', 'archivos', 'proyectos', 'ideas', 'rutinas',
   'peliculas', 'juegos', 'compras', 'finanzas', 'viajes', 'pc', 'enlaces',
 ]
 

@@ -75,6 +75,8 @@ Claves **núcleo** (columnas propias, se pueden filtrar/ordenar en la base de da
 | `progress` | Barra 0–100 % |
 | `url` | Enlace |
 | `checkbox` | Sí / No |
+| `time` | Hora (HH:MM) |
+| `datetime` | Fecha y hora |
 | `tags` | Etiquetas |
 
 Propiedades extra de un campo: `required`, `placeholder`, `default` (valor o función), `readOnly`, `hideInMeta` (no mostrar en tarjetas).
@@ -89,6 +91,23 @@ Propiedades extra de un campo: `required`, `placeholder`, `default` (valor o fun
 | `sortDefault` | `'recent'`, `'title'`, `'due_date'` o `'rating'` |
 | `component` | Componente React propio en lugar de la vista genérica (recibe `{ module }`) |
 | `usesItems: false` | El módulo no usa la tabla `items` (como Archivos) |
+| `notifications` | Avisos push del módulo (ver abajo) |
+
+### Notificaciones de un módulo
+
+Todo módulo con `due_date` y `showInCalendar: true` recibe **automáticamente** un aviso de tipo «evento» (09:00 del día, configurable en Ajustes). Para personalizarlo, declara `notifications`:
+
+```js
+notifications: {
+  kind: 'exam',                                  // task | exam | event | custom | system
+  time: (prefs, item) => prefs.examTime,         // hora local del aviso
+  daysBefore: (prefs, item) => prefs.examDaysBefore,
+  active: (item) => item.status !== 'aprobada',  // sin aviso si devuelve false
+  message: (item, { days }) => ({ title: `Examen: ${item.title}`, body: days === 1 ? 'Es mañana' : '' }),
+},
+```
+
+Cada elemento puede cambiarlo desde su formulario (campo **Recordatorio**). La sincronización con Supabase es automática. Más detalles en [NOTIFICACIONES.md](NOTIFICACIONES.md).
 
 ### Módulos con interfaz propia
 

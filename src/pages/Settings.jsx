@@ -1,4 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import NotificationSettings from '../components/NotificationSettings'
+import { useInstallPrompt } from '../hooks/useInstallPrompt'
 import { Settings as SettingsIcon, Sun, Moon, Laptop, Download, Upload, LogOut, KeyRound, Cloud, HardDrive, Smartphone } from 'lucide-react'
 import ModuleHeader from '../components/ModuleHeader'
 import { Segmented } from '../components/ui'
@@ -15,6 +18,14 @@ export default function Settings() {
   const { toast, notifyError, confirm } = useUI()
   const [password, setPassword] = useState('')
   const fileRef = useRef(null)
+  const { canInstall, install } = useInstallPrompt()
+  const [params] = useSearchParams()
+
+  // /ajustes?seccion=notificaciones (desde la campana): desplaza hasta esa sección.
+  useEffect(() => {
+    const id = params.get('seccion')
+    if (id) setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }, [params])
 
   const exportData = async () => {
     try {
@@ -105,6 +116,8 @@ export default function Settings() {
         </div>
       </section>
 
+      <NotificationSettings />
+
       <section className="card settings-section">
         <h3 className="section-title">Datos</h3>
         <div className="notice">
@@ -142,9 +155,15 @@ export default function Settings() {
           <Smartphone size={16} /> Instalar como app
         </h3>
         <p className="muted small">
-          En el móvil: abre PACO OS en el navegador y usa <strong>«Añadir a pantalla de inicio»</strong> (Safari: botón compartir · Chrome: menú ⋮).
-          En el PC (Chrome/Edge): icono de instalar en la barra de direcciones. Se abrirá como una aplicación más.
+          En el móvil: abre PACO OS en el navegador y usa <strong>«Añadir a pantalla de inicio»</strong> (Safari: botón compartir · Chrome: menú ⋮
+          → Instalar app). En el PC (Chrome/Edge): icono de instalar en la barra de direcciones. Se abrirá como una aplicación más.
+          En iPhone/iPad, las notificaciones solo funcionan con la app instalada así (iOS 16.4 o superior).
         </p>
+        {canInstall && (
+          <button className="btn ghost sm" onClick={install}>
+            <Download size={15} /> Instalar ahora
+          </button>
+        )}
       </section>
 
       <section className="card settings-section">

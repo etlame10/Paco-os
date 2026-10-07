@@ -124,3 +124,74 @@ create policy "paco-files: update own" on storage.objects
 
 create policy "paco-files: delete own" on storage.objects
   for delete using (bucket_id = 'paco-files' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- =====================================================================
+-- 7. NOTIFICACIONES (ver docs/NOTIFICACIONES.md)
+--    Tablas nuevas: no modifican ni borran nada de las anteriores.
+-- =====================================================================
+
+-- Dispositivos suscritos a Web Push (uno por navegador/app instalada)
+create table if not exists public.push_subscriptions (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  endpoint         text not null unique,
+  p256dh           text not null,
+  auth             text not null,
+  device_name      text,
+  user_agent       text,
+  failure_count    integer not null default 0,
+  created_at       timestamptz not null default now(),
+  last_seen_at     timestamptz not null default now(),
+  last_success_at  timestamptz
+);
+
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+
+-- Avisos programados y su historial (la bandeja de la campana).
+--   kind:   task | exam | event | custom | system
+--   status: pending (programado) | sending (enviándose) | sent | failed | cancelled | skipped
+create table if not exists public.notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  item_id     uuid references public.items(id) on delete cascade,
+  dedupe_key  text not null default gen_random_uuid()::text,
+  kind        text not null default 'custom'
+              check (kind in ('task', 'exam', 'event', 'custom', 'system')),
+  title       text not null default '',
+  body        text not null default '',
+  url         text,
+  remind_at   timestamptz not null,
+  status      text not null default 'pending'
+              check (status in ('pending', 'sending', 'sent', 'failed', 'cancelled', 'skipped')),
+  attempts    integer not null default 0,
+  last_error  text,
+  sent_at     timestamptz,
+  read_at     timestamptz,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  unique (user_id, dedupe_key)
+);
+
+create index if not exists notifications_due_idx  on public.notifications (remind_at) where status in ('pending', 'sending');
+create index if not exists notifications_user_idx on public.notifications (user_id, remind_at desc);
+create index if not exists notifications_item_idx on public.notifications (item_id);
+
+drop trigger if exists notifications_touch on public.notifications;
+create trigger notifications_touch before update on public.notifications
+  for each row execute function public.touch_updated_at();
+
+alter table public.push_subscriptions enable row level security;
+alter table public.notifications      enable row level security;
+
+drop policy if exists "push_subscriptions: own rows" on public.push_subscriptions;
+create policy "push_subscriptions: own rows" on public.push_subscriptions
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "notifications: own rows" on public.notifications;
+create policy "notifications: own rows" on public.notifications
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+revoke all on public.push_subscriptions, public.notifications from anon;
+grant select, insert, update, delete on public.push_subscriptions, public.notifications to authenticated;
+-- La Edge Function "send-notifications" usa el rol de servicio dentro de Supabase
+-- (nunca expuesto en la web) para leer los avisos pendientes de todos los usuarios.

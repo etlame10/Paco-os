@@ -5,6 +5,7 @@
 const KEY_ITEMS = 'pacoos.items'
 const KEY_FILES = 'pacoos.files'
 const KEY_SETTINGS = 'pacoos.settings'
+const KEY_NOTIFS = 'pacoos.notifications'
 const LOCAL_USER = { id: 'local-user', email: 'modo-local@paco.os' }
 const LOCAL_SESSION = { user: LOCAL_USER }
 
@@ -131,6 +132,8 @@ export const localBackend = {
     },
     async remove(id) {
       write(KEY_ITEMS, read(KEY_ITEMS, []).filter((i) => i.id !== id))
+      // Igual que ON DELETE CASCADE en Supabase
+      write(KEY_NOTIFS, read(KEY_NOTIFS, []).filter((n) => n.item_id !== id))
     },
     async bulkInsert(items) {
       const out = []
@@ -183,6 +186,82 @@ export const localBackend = {
     },
     async save(settings) {
       write(KEY_SETTINGS, settings)
+    },
+  },
+
+  // En modo local no hay servidor: los avisos se muestran mientras la app está abierta
+  // (ver src/hooks/useLocalNotifier.js).
+  notifications: {
+    async listUpcoming(limit = 30) {
+      return sortBy(
+        read(KEY_NOTIFS, []).filter((n) => ['pending', 'sending', 'failed'].includes(n.status)),
+        'remind_at',
+        true,
+      ).slice(0, limit)
+    },
+    async listRecent(limit = 30) {
+      return sortBy(
+        read(KEY_NOTIFS, []).filter((n) => ['sent', 'skipped'].includes(n.status)),
+        'sent_at',
+        false,
+      ).slice(0, limit)
+    },
+    async listForItem(itemId) {
+      return read(KEY_NOTIFS, []).filter((n) => n.item_id === itemId)
+    },
+    async create(row) {
+      const n = {
+        id: crypto.randomUUID(),
+        user_id: LOCAL_USER.id,
+        item_id: null,
+        dedupe_key: crypto.randomUUID(),
+        kind: 'custom',
+        title: '',
+        body: '',
+        url: null,
+        status: 'pending',
+        attempts: 0,
+        last_error: null,
+        sent_at: null,
+        read_at: null,
+        ...row,
+        created_at: now(),
+        updated_at: now(),
+      }
+      write(KEY_NOTIFS, [...read(KEY_NOTIFS, []), n])
+      return n
+    },
+    async update(id, patch) {
+      let updated
+      write(
+        KEY_NOTIFS,
+        read(KEY_NOTIFS, []).map((n) => (n.id === id ? (updated = { ...n, ...patch, updated_at: now() }) : n)),
+      )
+      return updated
+    },
+    async remove(id) {
+      write(KEY_NOTIFS, read(KEY_NOTIFS, []).filter((n) => n.id !== id))
+    },
+    async markAllRead() {
+      write(
+        KEY_NOTIFS,
+        read(KEY_NOTIFS, []).map((n) => (n.status === 'sent' && !n.read_at ? { ...n, read_at: now() } : n)),
+      )
+    },
+  },
+
+  push: {
+    available: false,
+    async listSubscriptions() {
+      return []
+    },
+    async saveSubscription() {
+      throw new Error('Las notificaciones push necesitan Supabase configurado.')
+    },
+    async removeSubscription() {},
+    async removeByEndpoint() {},
+    async sendTest() {
+      throw new Error('Las notificaciones push necesitan Supabase configurado.')
     },
   },
 }

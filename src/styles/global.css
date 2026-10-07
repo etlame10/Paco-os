@@ -676,3 +676,43 @@ a.widget-row:hover, button.widget-row:hover, .widget-row:has(.widget-row-main:ho
 
 .notice-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .notice-danger svg { color: var(--danger); }
+.notice code, .muted code { font-size: 0.85em; background: var(--surface-3); padding: 1px 5px; border-radius: 5px; }
+
+/* ---------- Notificaciones ---------- */
+.bell { position: relative; }
+.bell-badge {
+  position: absolute; top: 3px; right: 3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 99px; background: var(--danger); color: #fff;
+  font-size: 0.65rem; font-weight: 700; line-height: 16px; text-align: center;
+}
+.mobile-top-actions { display: flex; align-items: center; gap: 2px; }
+.bell-backdrop { position: fixed; inset: 0; z-index: 95; }
+.bell-panel {
+  position: fixed; top: 64px; left: calc(var(--sidebar-w) - 24px);
+  width: min(380px, calc(100vw - 24px)); max-height: min(560px, calc(100dvh - 90px));
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.6);
+  animation: pop 0.15s ease;
+}
+.bell-panel header { display: flex; align-items: center; gap: 4px; padding: 12px 12px 8px 16px; border-bottom: 1px solid var(--border); }
+.bell-body { overflow-y: auto; padding: 6px 8px 10px; }
+.bell-body h5 { margin: 10px 8px 4px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); }
+.bell-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; padding: 8px; border-radius: 10px; }
+.bell-item:hover { background: var(--surface-2); }
+.bell-item.unread { background: var(--accent-soft); }
+.bell-item > small { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-size: 0.72rem; margin-top: 2px; }
+.bell-kind { font-size: 1rem; line-height: 1.3; }
+.bell-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bell-text strong { font-size: 0.88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bell-text small { font-size: 0.78rem; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bell-empty { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
+.field-reminder > label { display: inline-flex; align-items: center; gap: 5px; }
+.reminder-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reminder-row > select, .reminder-row > input { flex: 1; min-width: 150px; }
+.toggle-row { cursor: pointer; }
+.toggle-row .row-main small { font-size: 0.78rem; }
+@media (max-width: 860px) {
+  .bell-panel { top: calc(56px + env(safe-area-inset-top)); left: auto; right: 12px; }
+}

@@ -12,6 +12,17 @@ export default {
   component: TasksView,
   itemName: 'tarea',
   showInCalendar: true,
+  // Aviso a la hora configurada (09:00 por defecto) del día límite, solo si sigue pendiente.
+  notifications: {
+    kind: 'task',
+    time: (prefs) => prefs.taskTime,
+    daysBefore: () => 0,
+    active: (item) => item.status !== 'hecha',
+    message: (item, { days }) => ({
+      title: `Tarea: ${item.title || 'Sin título'}`,
+      body: !item.due_date ? 'Recordatorio' : days === 0 ? 'Vence hoy' : days === 1 ? 'Vence mañana' : `Vence en ${days} días`,
+    }),
+  },
   fields: [
     { key: 'title', label: 'Tarea', type: 'text', required: true, placeholder: '¿Qué hay que hacer?' },
     {

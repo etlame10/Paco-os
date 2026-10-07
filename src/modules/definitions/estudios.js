@@ -12,6 +12,17 @@ export default {
   layout: 'cards',
   showInCalendar: true,
   calendarLabel: (item) => `Examen: ${item.title}`,
+  // Aviso del examen: por defecto a las 18:00 del día anterior.
+  notifications: {
+    kind: 'exam',
+    time: (prefs) => prefs.examTime,
+    daysBefore: (prefs) => prefs.examDaysBefore,
+    active: (item) => item.status !== 'aprobada',
+    message: (item, { days }) => ({
+      title: `Examen: ${item.title || 'Sin título'}`,
+      body: days === 0 ? 'Es hoy. ¡Mucha suerte!' : days === 1 ? 'Es mañana' : `Es dentro de ${days} días`,
+    }),
+  },
   fields: [
     { key: 'title', label: 'Asignatura', type: 'text', required: true, placeholder: 'Ej. Matemáticas II' },
     {
