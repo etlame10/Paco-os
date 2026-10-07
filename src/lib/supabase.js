@@ -47,6 +47,18 @@ export const supabaseConfigError = secretKeyDetected
 // Si la clave es secreta, NO se crea el cliente de Supabase.
 export const isSupabaseConfigured = Boolean(anonKey && isValidUrl(url) && !secretKeyDetected)
 
+// Por qué la app está en modo local (para explicarlo en pantalla). Nunca incluye los valores.
+export const supabaseEnvProblem = isSupabaseConfigured
+  ? null
+  : secretKeyDetected
+    ? supabaseConfigError
+    : [
+        !url ? 'falta VITE_SUPABASE_URL' : !isValidUrl(url) ? 'VITE_SUPABASE_URL no es una dirección válida (https://….supabase.co)' : null,
+        !anonKey ? 'falta VITE_SUPABASE_ANON_KEY (la Publishable key, sb_publishable_…)' : null,
+      ]
+        .filter(Boolean)
+        .join(' y ')
+
 if (secretKeyDetected) {
   console.error('[PACO OS] ' + supabaseConfigError)
 } else if (!isSupabaseConfigured && (url || anonKey)) {

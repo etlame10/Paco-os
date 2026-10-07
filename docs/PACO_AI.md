@@ -119,6 +119,22 @@ No hace falta tocar GitHub ni volver a desplegar la web: el frontend no necesita
 
 Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo openai/gpt-oss-120b · hoy N/1000 usos». Si no, el mensaje indica qué falta.
 
+### Probar en tu ordenador (`npm run dev`)
+
+En local, PACO AI usa **la misma Edge Function `paco-ai` de Supabase** que la web publicada: el navegador nunca llama a Groq y la clave `GROQ_API_KEY` nunca va en `.env.local`. Solo hacen falta las dos variables públicas de Supabase:
+
+1. Copia `.env.example` como **`.env.local`** (exactamente ese nombre, en la carpeta raíz del proyecto, junto a `package.json`).
+2. Rellena `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (la *Publishable key*, `sb_publishable_…`; Supabase → Project Settings → API Keys).
+3. Reinicia `npm run dev`. En la terminal debe aparecer `[PACO OS] Supabase: …supabase.co (PACO AI usará la Edge Function "paco-ai")`.
+
+Si en su lugar aparece `[PACO OS] MODO LOCAL: falta …`, PACO OS no ha leído esas variables y PACO AI mostrará «PACO AI necesita Supabase» con el motivo. Causas habituales en Windows:
+
+- El Bloc de notas guardó el archivo como `.env.local.txt` (activa «Extensiones de nombre de archivo» en el Explorador para verlo). PACO OS lo lee igualmente y avisa en la terminal, pero conviene renombrarlo.
+- PowerShell (`echo … > .env.local`) lo guarda en UTF-16. PACO OS lo lee igualmente y avisa; mejor guárdalo como UTF-8 (en VS Code: barra inferior → codificación → «Guardar con codificación» → UTF-8).
+- Falta la Publishable key (`.env.example` la trae vacía) o no se reinició `npm run dev` tras editar el archivo.
+
+Para iniciar sesión en `http://localhost:5173` con email y contraseña no hay que configurar nada más. Si entras con enlace por email, añade `http://localhost:5173` en Supabase → Authentication → URL Configuration → Redirect URLs.
+
 ---
 
 ## Para desarrolladores

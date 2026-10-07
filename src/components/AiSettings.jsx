@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { useUI } from '../context/UIContext'
 import { api, isLocalMode } from '../lib/api'
+import { supabaseEnvProblem } from '../lib/supabase'
 import { PERMISSION_KINDS, PERMISSION_LABELS, getAiPermissions } from '../lib/ai/permissions'
 import { clearChat as clearStoredChat } from '../lib/ai/storage'
 
@@ -51,7 +52,7 @@ export default function AiSettings() {
           {!status
             ? 'Comprobando…'
             : isLocalMode || status.local
-              ? 'PACO AI necesita Supabase (no funciona en modo local).'
+              ? `PACO AI necesita Supabase (no funciona en modo local)${supabaseEnvProblem ? `: ${supabaseEnvProblem}. Revisa .env.local y reinicia npm run dev` : ''}.`
               : status.error
                 ? status.error
                 : !status.configured

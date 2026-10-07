@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { useUI } from '../context/UIContext'
 import { api, isLocalMode } from '../lib/api'
+import { supabaseEnvProblem } from '../lib/supabase'
 import { createToolbox, modulesSummary } from '../lib/ai/tools'
 import { getAiPermissions } from '../lib/ai/permissions'
 import { attachmentNames, buildUserMessage, pendingToolUses, runAgent } from '../lib/ai/agent'
@@ -469,7 +470,12 @@ function ApprovalPanel({ approval, onDecide, onDecideAll }) {
 
 function SetupNotice({ status }) {
   let text
-  if (isLocalMode || status.local) text = 'PACO AI necesita Supabase: en modo local no hay un servidor seguro donde guardar la clave de la IA.'
+  if (isLocalMode || status.local)
+    text =
+      'PACO OS está en modo local y PACO AI necesita Supabase (la clave de la IA solo vive en el servidor).' +
+      (supabaseEnvProblem
+        ? ` Motivo: ${supabaseEnvProblem}. Revisa el archivo .env.local (nombre exacto, en la carpeta del proyecto y guardado en UTF-8) y reinicia npm run dev.`
+        : '')
   else if (status.error) text = status.error
   else if (!status.configured) text = 'Falta configurar PACO AI en Supabase (clave de la IA y emails permitidos).'
   else if (!status.allowed) text = 'Tu cuenta no está en la lista de emails permitidos (PACO_AI_ALLOWED_EMAILS).'
