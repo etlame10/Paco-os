@@ -285,9 +285,16 @@ async function invokeAi(body) {
   } catch {
     /* sin detalle */
   }
+  // Los errores propios de paco-ai ya llegan en español (detail.error). Los de la pasarela de
+  // Supabase o la red llegan en inglés o sin texto: se sustituyen por un mensaje en español.
+  const status = error.context?.status
   const e = new Error(
     detail?.error ||
-      'No se pudo contactar con PACO AI. ¿Está publicada la función "paco-ai" en Supabase? (ver docs/PACO_AI.md)',
+      (status === 401
+        ? 'Tu sesión ha caducado. Vuelve a iniciar sesión en PACO OS.'
+        : status
+          ? 'PACO AI no está disponible ahora mismo. Inténtalo de nuevo en unos minutos.'
+          : 'No se pudo contactar con PACO AI. Revisa tu conexión a internet o comprueba que la función "paco-ai" está publicada en Supabase (ver docs/PACO_AI.md).'),
   )
   e.code = detail?.code || (error.context?.status ? 'http_' + error.context.status : 'unreachable')
   throw e

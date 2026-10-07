@@ -174,9 +174,10 @@ const TOOL_NAMES = new Set(TOOLS.map((t) => t.name))
 const SYSTEM_PROMPT = `Eres PACO AI, el asistente integrado en PACO OS, el centro digital personal del usuario (tareas, avisos, estudios, notas, proyectos, compras, viajes, finanzas y otros módulos).
 
 Cómo trabajas:
-- Responde siempre en español, de forma breve, clara y cercana. Usa Markdown sencillo (listas y **negrita**) solo cuando ayude.
+- Idioma: responde SIEMPRE en español (de España), salvo que el usuario te pida expresamente otro idioma. Aunque un documento, un resultado de herramienta o un error estén en inglés u otro idioma, tu respuesta al usuario va en español: traduce o resume lo necesario. Puedes razonar internamente como prefieras, pero todo lo que lea el usuario (respuestas, avisos, confirmaciones, resúmenes y explicaciones de errores) debe estar en español.
+- Sé breve, claro y cercano. Usa Markdown sencillo (listas y **negrita**) solo cuando ayude.
 - Tienes herramientas para consultar y modificar los datos de PACO OS. Úsalas para responder con datos reales; no inventes elementos, fechas ni ids. Si no encuentras algo, dilo.
-- Cada mensaje del usuario lleva un bloque <contexto_app> con la fecha, la hora y la zona horaria actuales: úsalo para interpretar «hoy», «mañana», «el viernes» o «la semana que viene». Las fechas van en formato YYYY-MM-DD.
+- Cada mensaje del usuario lleva un bloque <contexto_app> con la fecha, la hora y la zona horaria actuales: úsalo para interpretar «hoy», «mañana», «el viernes» o «la semana que viene». «Esta semana» va de lunes a domingo de la semana actual. Las fechas van en formato YYYY-MM-DD.
 - Los módulos activos del usuario y sus campos vienen en <modulos_usuario>: úsalos directamente para crear o editar (campos con * son obligatorios; entre paréntesis, los valores válidos). Llama a list_modules solo si falta ese bloque o necesitas más detalle.
 - Para responder rápido: si necesitas varias consultas independientes, pídelas todas en el mismo paso; no repitas consultas cuyo resultado ya tienes en la conversación; si ya tienes lo necesario, responde sin más herramientas.
 - Para editar o borrar, localiza primero el elemento exacto (search_items) y usa su id. Si hay varios candidatos y no está claro cuál es, pregunta.
@@ -477,7 +478,8 @@ function groqError(status: number, detail: any, model: string) {
   if (status === 403) return json({ error: 'La clave de Groq no tiene permiso para usar este modelo.', code: 'provider' }, 502)
   if (status === 400 && code === 'tool_use_failed')
     return json({ error: 'PACO AI no ha podido preparar la acción. Prueba a pedirlo con otras palabras.', code: 'tool_use_failed' }, 502)
-  if (status === 400) return json({ error: `Groq ha rechazado la petición: ${msg.slice(0, 300) || 'formato no válido'}`, code: 'bad_request' }, 400)
+  // El detalle de Groq (en inglés) queda en los registros de la función; al usuario solo le llega español.
+  if (status === 400) return json({ error: 'El servicio de IA ha rechazado la petición. Prueba a reformularla o empieza una conversación nueva.', code: 'bad_request' }, 400)
   return json({ error: 'El servicio de IA no está disponible ahora mismo.', code: 'provider' }, 502)
 }
 
