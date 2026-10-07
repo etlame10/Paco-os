@@ -17,7 +17,7 @@ Antes de crear, cambiar o borrar nada te enseña exactamente qué va a hacer y e
 Navegador (PACO OS)                         Supabase                       Groq   
 ┌──────────────────────────┐   sesión   ┌───────────────────────┐  clave  ┌──────────┐
 │ Chat + bucle del agente  │ ─────────► │ Edge Function paco-ai │ ──────► │ gpt-oss  │
-│ (src/lib/ai/agent.js)    │ ◄───────── │ · comprueba la sesión │ ◄────── │   -20b   │
+│ (src/lib/ai/agent.js)    │ ◄───────── │ · comprueba la sesión │ ◄────── │  -120b   │
 │                          │            │ · lista de emails     │         └──────────┘
 │ Herramientas internas    │            │ · límite diario       │
 │ (src/lib/ai/tools.js)    │            │ · guarda la clave     │
@@ -64,7 +64,7 @@ Navegador (PACO OS)                         Supabase                       Groq
 
 ## Costes y plan gratuito de Groq
 
-PACO AI usa **Groq** con el modelo `openai/gpt-oss-20b` y su **plan gratuito**: sin tarjeta y sin ningún servicio de pago. Supabase sigue en 0 € (1 invocación de Edge Function por paso; el plan gratuito incluye 500.000 al mes).
+PACO AI usa **Groq** con el modelo `openai/gpt-oss-120b` y su **plan gratuito**: sin tarjeta y sin ningún servicio de pago. Supabase sigue en 0 € (1 invocación de Edge Function por paso; el plan gratuito incluye 500.000 al mes).
 
 **Límites del plan gratuito para este modelo** (según la documentación de Groq en 2026; la cifra válida para ti aparece en https://console.groq.com/settings/limits): unas **30 peticiones/minuto, 1.000 peticiones/día, 8.000 tokens/minuto y 200.000 tokens/día**, por organización.
 
@@ -106,7 +106,7 @@ Supabase → **Edge Functions → Secrets** (o `supabase secrets set NOMBRE=valo
 | `GROQ_API_KEY` | Sí | Tu clave `gsk_…` de Groq |
 | `PACO_AI_ALLOWED_EMAILS` | Sí | Tu email de PACO OS (varios separados por comas) |
 | `PACO_AI_DAILY_LIMIT` | No | Mensajes (usos) por usuario y día (1000) |
-| `PACO_AI_MODEL` | No | Modelo de Groq. Por defecto `openai/gpt-oss-20b` |
+| `PACO_AI_MODEL` | No | Modelo de Groq. Por defecto `openai/gpt-oss-120b` |
 | `PACO_AI_THINKING` | No | Esfuerzo de razonamiento: `low` (por defecto, rápido), `medium` o `high` (`minimal` = `low`) |
 | `PACO_AI_MAX_PROMPT_CHARS` | No | Conversación máxima por petición (12000) |
 | `PACO_AI_MAX_OUTPUT_TOKENS` | No | Salida máxima por paso (1536) |
@@ -117,7 +117,7 @@ No hace falta tocar GitHub ni volver a desplegar la web: el frontend no necesita
 
 ### 5. Comprobar
 
-Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo openai/gpt-oss-20b · hoy N/1000 usos». Si no, el mensaje indica qué falta.
+Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo openai/gpt-oss-120b · hoy N/1000 usos». Si no, el mensaje indica qué falta.
 
 ---
 

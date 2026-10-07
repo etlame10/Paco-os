@@ -1,7 +1,7 @@
 // =====================================================================
 // PACO OS — Edge Function "paco-ai"
 //
-// Puente seguro entre PACO OS y el modelo de IA (Groq API, modelo openai/gpt-oss-20b).
+// Puente seguro entre PACO OS y el modelo de IA (Groq API, modelo openai/gpt-oss-120b).
 //   - La clave de Groq vive SOLO aquí, como secreto de Supabase (GROQ_API_KEY).
 //     Nunca en la web, en GitHub ni en el repositorio.
 //   - Solo responde a usuarios con sesión iniciada de PACO OS y que estén en la
@@ -28,7 +28,7 @@
 //   GROQ_API_KEY             (obligatorio) clave de https://console.groq.com/keys
 //   PACO_AI_ALLOWED_EMAILS   (obligatorio) emails que pueden usar PACO AI, separados por comas
 //   PACO_AI_DAILY_LIMIT      (opcional) interacciones por usuario y día. Por defecto 1000
-//   PACO_AI_MODEL            (opcional) modelo de Groq. Por defecto openai/gpt-oss-20b
+//   PACO_AI_MODEL            (opcional) modelo de Groq. Por defecto openai/gpt-oss-120b
 //   PACO_AI_THINKING         (opcional) esfuerzo de razonamiento: low | medium | high.
 //                            Por defecto low (rápido). "minimal" equivale a low.
 //   PACO_AI_MAX_PROMPT_CHARS (opcional) caracteres máximos de conversación por petición. Por
@@ -43,7 +43,7 @@
 // =====================================================================
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const DEFAULT_MODEL = 'openai/gpt-oss-20b'
+const DEFAULT_MODEL = 'openai/gpt-oss-120b'
 const GROQ_URL = 'https://api.groq.com/openai/v1'
 // Tope de salida por paso (incluye el razonamiento). Groq lo cuenta en el límite de
 // tokens por minuto, así que no conviene que sea grande en el plan gratuito.

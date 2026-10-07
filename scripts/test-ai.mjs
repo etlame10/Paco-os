@@ -560,7 +560,7 @@ const docToolbox = (api) =>
   ok(/role: 'tool', tool_call_id/.test(src) && /tool_calls/.test(src) && /tool_choice: 'auto'/.test(src), 'formato de tool calling de Groq (tool_calls / role tool)')
   ok(/status === 429/.test(src) && /retry-after/.test(src) && /MAX_RATE_WAIT_MS/.test(src), '429 por minuto de Groq: espera acotada y reintento')
   ok(/RETRY_DELAYS_MS = \[800, 2000\]/.test(src) && /TOTAL_BUDGET_MS/.test(src), 'reintentos acotados con esperas crecientes')
-  ok(/const DEFAULT_MODEL = 'openai\/gpt-oss-20b'/.test(src) && !/gemini|GEMINI_API_KEY|generativelanguage/i.test(src.replace(/\/\/.*$/gm, '')), 'modelo por defecto openai/gpt-oss-20b y sin restos de Gemini en el código')
+  ok(/const DEFAULT_MODEL = 'openai\/gpt-oss-120b'/.test(src) && !/gemini|GEMINI_API_KEY|generativelanguage/i.test(src.replace(/\/\/.*$/gm, '')), 'modelo por defecto openai/gpt-oss-120b y sin restos de Gemini en el código')
 }
 
 // ---------- Latencia: consultas en paralelo, cambios en orden ----------
