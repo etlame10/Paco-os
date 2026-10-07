@@ -1,4 +1,5 @@
 import { BellRing, Check } from 'lucide-react'
+import { REPEAT_OPTIONS } from '../../lib/smart/recurrence'
 
 // Recordatorios sueltos con fecha y hora ("llamar al médico a las 17:30").
 export default {
@@ -14,6 +15,8 @@ export default {
   sortDefault: 'due_date',
   showInCalendar: true,
   calendarLabel: (item) => `${item.data?.hora ? item.data.hora + ' · ' : ''}${item.title}`,
+  // Al marcar como hecho un aviso que se repite, se programa el siguiente.
+  recurrence: { doneStatus: 'hecho', openStatus: 'pendiente' },
   notifications: {
     kind: 'custom',
     time: (prefs, item) => item.data?.hora || '09:00',
@@ -25,6 +28,7 @@ export default {
     { key: 'title', label: 'Aviso', type: 'text', required: true, placeholder: 'Ej. Llamar al dentista' },
     { key: 'due_date', label: 'Fecha', type: 'date', required: true },
     { key: 'hora', label: 'Hora', type: 'time', default: '09:00', hideInMeta: false },
+    { key: 'repeat', label: 'Repetir', type: 'select', emptyLabel: 'No se repite', options: REPEAT_OPTIONS },
     {
       key: 'status', label: 'Estado', type: 'select', default: 'pendiente',
       options: [

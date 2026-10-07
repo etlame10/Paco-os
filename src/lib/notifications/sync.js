@@ -6,16 +6,13 @@
 import { computeItemNotifications } from './rules'
 import { getNotificationPrefs } from './prefs'
 
-// La capa de datos no conoce React: SettingsContext le pasa aquí los módulos y ajustes actuales.
-let context = { getModule: () => null, settings: null }
-export function setNotificationContext(ctx) {
-  context = ctx
-}
+import { getRuntimeContext } from '../runtimeContext'
 
 const OPEN = ['pending', 'failed']
 
 export async function syncItemNotifications(backend, item) {
   if (!item?.id || !backend.notifications) return
+  const context = getRuntimeContext()
   const module = context.getModule(item.module)
   const prefs = getNotificationPrefs(context.settings)
   const desired = module ? computeItemNotifications(item, module, prefs) : []

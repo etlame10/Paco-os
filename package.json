@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:push": "node scripts/test-webpush.mjs"
+    "test:push": "node scripts/test-webpush.mjs",
+    "test:smart": "node scripts/test-smart.mjs",
+    "test": "npm run test:smart && npm run test:push"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

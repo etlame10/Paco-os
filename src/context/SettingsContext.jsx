@@ -3,7 +3,8 @@ import { api, rawBackend } from '../lib/api'
 import { useAuth } from './AuthContext'
 import { STATIC_MODULES, DEFAULT_ENABLED, buildCustomModule } from '../modules/registry'
 import { getNotificationPrefs } from '../lib/notifications/prefs'
-import { resyncAllNotifications, setNotificationContext } from '../lib/notifications/sync'
+import { resyncAllNotifications } from '../lib/notifications/sync'
+import { setRuntimeContext } from '../lib/runtimeContext'
 
 // Sube este número si cambian las reglas de avisos y hay que reprogramar todo una vez.
 const NOTIFICATIONS_VERSION = 1
@@ -114,9 +115,10 @@ export function SettingsProvider({ children }) {
     [enabledModules, update],
   )
 
-  // ---- Notificaciones ----
-  // La capa de datos necesita conocer los módulos y ajustes para programar avisos.
-  setNotificationContext({ getModule, settings })
+  // ---- Notificaciones y repeticiones ----
+  // La capa de datos necesita conocer los módulos y ajustes para programar avisos
+  // y crear la siguiente repetición de un elemento.
+  setRuntimeContext({ getModule, settings })
 
   const notificationPrefs = useMemo(() => getNotificationPrefs(settings), [settings])
   const prefsKey = JSON.stringify(notificationPrefs)

@@ -4,11 +4,12 @@ import { isSupabaseConfigured } from '../supabase'
 import { supabaseBackend } from './supabaseBackend'
 import { localBackend } from './localBackend'
 import { safeSync } from '../notifications/sync'
+import { spawnNextIfRecurring } from '../smart/spawn'
 
 const backend = isSupabaseConfigured ? supabaseBackend : localBackend
 
-// Los elementos se envuelven para mantener sus avisos programados sincronizados
-// automáticamente, sea cual sea el sitio de la app que los cree o modifique.
+// Los elementos se envuelven para mantener sus avisos programados sincronizados y crear
+// la siguiente repetición automáticamente, sea cual sea el sitio de la app que los modifique.
 const items = {
   ...backend.items,
   async create(item) {
@@ -19,6 +20,9 @@ const items = {
   async update(id, patch) {
     const row = await backend.items.update(id, patch)
     safeSync(backend, row)
+    if (patch.status !== undefined) {
+      spawnNextIfRecurring(backend, items, row).catch((e) => console.warn('[PACO OS] No se pudo crear la repetición', e))
+    }
     return row
   },
   async bulkInsert(rows) {

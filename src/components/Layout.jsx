@@ -5,10 +5,12 @@ import { Logo } from './Logo'
 import CommandPalette from './CommandPalette'
 import NotificationBell from './NotificationBell'
 import { useNotificationRuntime } from '../hooks/useLocalNotifier'
+import { useUI } from '../context/UIContext'
+import { onItemsChanged } from '../lib/runtimeContext'
 import { useSettings } from '../context/SettingsContext'
 import { useAuth } from '../context/AuthContext'
 import { api, isLocalMode } from '../lib/api'
-import { cx } from '../lib/utils'
+import { cx, relativeDay } from '../lib/utils'
 
 export default function Layout() {
   const { enabledModules, settings } = useSettings()
@@ -19,6 +21,16 @@ export default function Layout() {
 
   // Avisos en modo local y mantenimiento de la suscripción push en Supabase.
   useNotificationRuntime(settings)
+
+  // Al completar algo que se repite, se informa de cuándo será la siguiente vez.
+  const { toast } = useUI()
+  useEffect(
+    () =>
+      onItemsChanged((d) => {
+        if (d.type === 'recurrence' && d.item?.due_date) toast(`🔁 Siguiente: ${relativeDay(d.item.due_date)} · ${d.item.title}`, 'info')
+      }),
+    [toast],
+  )
 
   useEffect(() => setDrawer(false), [location.pathname])
 

@@ -14,10 +14,11 @@ Tecnología: React · Vite · JavaScript · CSS · Lucide React · Supabase (Aut
 
 | Sección | Qué hace |
 | --- | --- |
-| **Inicio** | Saludo, captura rápida a cualquier módulo, tareas de hoy, próximos 14 días, elementos fijados, actividad reciente, archivos recientes y lanzador de módulos. |
+| **Inicio** | Saludo, **captura inteligente** en lenguaje natural («dentista mañana a las 17:30», «gimnasio cada lunes»), tareas de hoy, próximos 14 días, elementos fijados, actividad reciente, archivos recientes y lanzador de módulos. |
 | **Calendario** | Vista mensual unificada con todo lo que tiene fecha en cualquier módulo (tareas, exámenes, entregas, viajes…). |
 | **Buscador global** | `Ctrl + K` (o `⌘ + K`): ir a cualquier módulo, crear elementos y buscar en todo tu contenido. |
 | **Módulos** | Activa/desactiva módulos, cambia su orden en el menú y **crea módulos propios sin programar** (campos, estados, icono, color, vista). |
+| **Repeticiones** | Tareas y avisos que se repiten (cada día, entre semana, cada semana, cada mes, cada año): al completarlos se crea el siguiente con su aviso. |
 | **Notificaciones** | Avisos push en móvil y PC: tareas, exámenes, eventos del calendario y avisos personalizados. Campana 🔔 con recientes y próximos. Ver **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. |
 | **Ajustes** | Nombre, tema claro/oscuro/sistema, color de acento, notificaciones, exportar/importar copia de seguridad (JSON), cambiar contraseña. |
 
@@ -114,7 +115,7 @@ paco-os/
 ├─ supabase/functions/            # Edge Function send-notifications (Web Push)
 ├─ docs/MODULOS.md                # Cómo crear módulos nuevos
 ├─ docs/NOTIFICACIONES.md         # Cómo activar y ampliar las notificaciones
-├─ scripts/test-webpush.mjs       # Prueba del cifrado Web Push (npm run test:push)
+├─ scripts/                       # Pruebas: test-smart.mjs (captura y repeticiones), test-webpush.mjs
 ├─ public/                        # Iconos, manifest y service worker (sw.js)
 └─ src/
    ├─ main.jsx · App.jsx          # Arranque y rutas (HashRouter)
@@ -122,6 +123,7 @@ paco-os/
    │  ├─ api/                     # Capa de datos: supabaseBackend y localBackend (misma interfaz)
    │  ├─ supabase.js              # Cliente Supabase
    │  ├─ notifications/           # Reglas, sincronización y push de los avisos
+   │  ├─ smart/                   # Captura en lenguaje natural y repeticiones
    │  ├─ items.js · utils.js · icons.js
    ├─ context/                    # Sesión, ajustes/módulos activos, avisos y confirmaciones
    ├─ hooks/useItems.js           # CRUD genérico con actualizaciones optimistas
@@ -152,5 +154,7 @@ Guía completa: **[docs/MODULOS.md](docs/MODULOS.md)**.
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Genera la versión de producción en `dist/` |
 | `npm run preview` | Sirve `dist/` para probarla |
+| `npm test` | Ejecuta todas las pruebas |
+| `npm run test:smart` | Prueba la captura inteligente y las repeticiones |
 | `npm run test:push` | Comprueba el cifrado Web Push de la Edge Function |
 | `npx web-push generate-vapid-keys` | Genera las claves VAPID para las notificaciones |

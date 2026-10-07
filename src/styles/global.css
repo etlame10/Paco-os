@@ -716,3 +716,24 @@ a.widget-row:hover, button.widget-row:hover, .widget-row:has(.widget-row-main:ho
 @media (max-width: 860px) {
   .bell-panel { top: calc(56px + env(safe-area-inset-top)); left: auto; right: 12px; }
 }
+
+/* ---------- Captura inteligente ---------- */
+.quick-add { flex-wrap: wrap; }
+.smart-hint {
+  flex-basis: 100%;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 2px 2px 4px;
+  font-size: 0.8rem; color: var(--text-2);
+  animation: fadein 0.15s ease;
+}
+.smart-hint > strong { font-weight: 600; color: var(--text); max-width: 45%; }
+.smart-hint .chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 99px;
+  background: var(--accent-soft); color: var(--text);
+  white-space: nowrap;
+}
+.smart-hint .chip.target { background: var(--surface-3); color: var(--text-2); }
+@media (max-width: 860px) {
+  .smart-hint > strong { max-width: calc(100% - 24px); flex: 1 1 calc(100% - 24px); }
+}

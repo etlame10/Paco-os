@@ -1,5 +1,6 @@
 import { CheckSquare } from 'lucide-react'
 import TasksView from '../views/TasksView'
+import { REPEAT_OPTIONS } from '../../lib/smart/recurrence'
 
 export default {
   id: 'tareas',
@@ -12,6 +13,8 @@ export default {
   component: TasksView,
   itemName: 'tarea',
   showInCalendar: true,
+  // Al completar una tarea que se repite, se crea la siguiente automáticamente.
+  recurrence: { doneStatus: 'hecha', openStatus: 'pendiente' },
   // Aviso a la hora configurada (09:00 por defecto) del día límite, solo si sigue pendiente.
   notifications: {
     kind: 'task',
@@ -34,6 +37,7 @@ export default {
       ],
     },
     { key: 'due_date', label: 'Fecha límite', type: 'date' },
+    { key: 'repeat', label: 'Repetir', type: 'select', emptyLabel: 'No se repite', options: REPEAT_OPTIONS },
     {
       key: 'status', label: 'Estado', type: 'select', default: 'pendiente',
       options: [

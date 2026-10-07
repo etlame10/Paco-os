@@ -6,7 +6,9 @@ import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { useUI } from '../context/UIContext'
 import { ModuleIcon, Spinner } from '../components/ui'
-import { defaultForm, formToItem } from '../lib/items'
+import SmartHint from '../components/SmartHint'
+import { parseQuick } from '../lib/smart/parseQuick'
+import { autoModule, buildCaptureItem, moduleAcceptsSchedule } from '../lib/smart/capture'
 import { addDays, cx, daysUntil, formatBytes, greeting, relativeDay, timeAgo, toISODate, todayISO } from '../lib/utils'
 
 export default function Dashboard() {
@@ -21,8 +23,12 @@ export default function Dashboard() {
 
   const itemModules = enabledModules.filter((m) => m.usesItems !== false)
   const [captureText, setCaptureText] = useState('')
-  const [captureModule, setCaptureModule] = useState('')
-  const captureTarget = getModule(captureModule) || itemModules[0]
+  const [captureModule, setCaptureModule] = useState('auto')
+  // Captura inteligente: entiende fechas, horas y repeticiones ("dentista mañana a las 17:30").
+  const parsed = useMemo(() => parseQuick(captureText), [captureText])
+  const captureTarget =
+    captureModule === 'auto' ? autoModule(parsed, itemModules) : getModule(captureModule) || itemModules[0]
+  const showHint = captureText.trim() && parsed.understood && moduleAcceptsSchedule(captureTarget)
 
   const load = useCallback(async () => {
     try {
@@ -60,7 +66,8 @@ export default function Dashboard() {
       .filter((i) => {
         const m = getModule(i.module)
         if (!m?.showInCalendar || !i.due_date) return false
-        if (i.module === 'tareas' && i.status === 'hecha') return false
+        // Lo ya completado (tareas hechas, avisos hechos...) no aparece como próximo.
+        if (m.recurrence ? i.status === m.recurrence.doneStatus : i.module === 'tareas' && i.status === 'hecha') return false
         return i.due_date > today && i.due_date <= to
       })
       .sort((a, b) => a.due_date.localeCompare(b.due_date))
@@ -79,11 +86,11 @@ export default function Dashboard() {
     const title = captureText.trim()
     if (!title || !captureTarget) return
     try {
-      const base = formToItem(defaultForm(captureTarget.fields || [], { title }))
+      const base = buildCaptureItem(parseQuick(title), captureTarget, title)
       const row = await api.items.create({ module: captureTarget.id, ...base })
       setItems((p) => [row, ...p])
       setCaptureText('')
-      toast(`Guardado en ${captureTarget.name}`)
+      toast(row.due_date ? `Guardado en ${captureTarget.name} · ${relativeDay(row.due_date)}` : `Guardado en ${captureTarget.name}`)
     } catch (err) {
       notifyError(err)
     }
@@ -122,8 +129,14 @@ export default function Dashboard() {
       {itemModules.length > 0 && (
         <form className="quick-add capture" onSubmit={capture}>
           <Zap size={18} className="accent-text" />
-          <input value={captureText} onChange={(e) => setCaptureText(e.target.value)} placeholder="Captura rápida: escribe algo y guárdalo donde quieras…" />
-          <select value={captureTarget?.id} onChange={(e) => setCaptureModule(e.target.value)} aria-label="Módulo de destino">
+          <input
+            value={captureText}
+            onChange={(e) => setCaptureText(e.target.value)}
+            placeholder="Escribe lo que sea: «dentista mañana a las 17:30», «gimnasio cada lunes»…"
+            aria-label="Captura rápida"
+          />
+          <select value={captureModule} onChange={(e) => setCaptureModule(e.target.value)} aria-label="Módulo de destino">
+            <option value="auto">✨ Automático</option>
             {itemModules.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
@@ -133,6 +146,7 @@ export default function Dashboard() {
           <button className="btn primary sm" disabled={!captureText.trim()}>
             Guardar
           </button>
+          {showHint && <SmartHint parsed={parsed} target={captureTarget} />}
         </form>
       )}
 

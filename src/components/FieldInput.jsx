@@ -43,7 +43,7 @@ export default function FieldInput({ field, value, onChange, autoFocus }) {
     case 'select':
       return (
         <select {...common} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
-          {!field.default && <option value="">—</option>}
+          {!field.default && <option value="">{field.emptyLabel || '—'}</option>}
           {field.options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}

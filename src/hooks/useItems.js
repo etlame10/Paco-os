@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { onItemsChanged } from '../lib/runtimeContext'
 import { useUI } from '../context/UIContext'
 
 // Hook genérico de datos para cualquier módulo basado en items.
@@ -9,20 +10,29 @@ export function useItems(module, { orderBy = 'created_at', ascending = false } =
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const reload = useCallback(async () => {
-    setLoading(true)
-    try {
-      setItems(await api.items.list({ module, orderBy, ascending }))
-    } catch (e) {
-      notifyError(e)
-    } finally {
-      setLoading(false)
-    }
-  }, [module, orderBy, ascending, notifyError])
+  const reload = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true)
+      try {
+        setItems(await api.items.list({ module, orderBy, ascending }))
+      } catch (e) {
+        notifyError(e)
+      } finally {
+        if (!silent) setLoading(false)
+      }
+    },
+    [module, orderBy, ascending, notifyError],
+  )
 
   useEffect(() => {
     reload()
   }, [reload])
+
+  // Cambios hechos por la capa de datos (p. ej. la siguiente repetición de una tarea).
+  useEffect(
+    () => onItemsChanged((detail) => (!module || detail.module === module) && reload({ silent: true })),
+    [module, reload],
+  )
 
   const create = useCallback(
     async (fields) => {

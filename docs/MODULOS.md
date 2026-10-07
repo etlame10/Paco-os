@@ -92,6 +92,7 @@ Propiedades extra de un campo: `required`, `placeholder`, `default` (valor o fun
 | `component` | Componente React propio en lugar de la vista genérica (recibe `{ module }`) |
 | `usesItems: false` | El módulo no usa la tabla `items` (como Archivos) |
 | `notifications` | Avisos push del módulo (ver abajo) |
+| `recurrence` | Elementos que se repiten (ver abajo) |
 
 ### Notificaciones de un módulo
 
@@ -123,3 +124,23 @@ Mira `TasksView.jsx`, `NotesView.jsx` y `FilesView.jsx` como ejemplos.
 ### ¿Y si un módulo necesita su propia tabla?
 
 Casi nunca hace falta (el campo `data` JSON admite cualquier estructura), pero si lo necesitas: añade la tabla con su política RLS en `supabase/schema.sql`, añade los métodos a **ambos** backends en `src/lib/api/` y úsalos desde tu componente.
+
+### Elementos que se repiten
+
+Añade un campo `repeat` y declara `recurrence` con el estado de «hecho» y el de «pendiente»:
+
+```js
+import { REPEAT_OPTIONS } from '../../lib/smart/recurrence'
+
+recurrence: { doneStatus: 'hecha', openStatus: 'pendiente' },
+fields: [
+  // ...
+  { key: 'repeat', label: 'Repetir', type: 'select', emptyLabel: 'No se repite', options: REPEAT_OPTIONS },
+],
+```
+
+Al pasar un elemento a `doneStatus`, la capa de datos crea automáticamente el siguiente (cada día, entre semana, cada semana, cada 2 semanas, cada mes o cada año) con su aviso. El completado se queda como historial y no se duplica si se desmarca y se vuelve a marcar.
+
+### Captura inteligente
+
+Si el módulo tiene `due_date`, la captura rápida del Inicio entiende lenguaje natural («mañana a las 17:30», «el viernes», «cada lunes», «!alta») y rellena `due_date`, `repeat`, `priority` y `hora` cuando el módulo tiene esos campos. Intérprete: `src/lib/smart/parseQuick.js` (pruebas: `npm run test:smart`).
