@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, Send, Square, Plus, ShieldCheck, Check, X, AlertTriangle, Loader2, Search, PenLine, Trash2, FilePlus2, RotateCcw, Ban } from 'lucide-react'
+import { Sparkles, Send, Square, Plus, ShieldCheck, Check, X, AlertTriangle, Loader2, Search, PenLine, Trash2, FilePlus2, RotateCcw, Ban, Paperclip, FileText } from 'lucide-react'
 import ModuleHeader from '../components/ModuleHeader'
 import Markdown from '../components/Markdown'
+import DocumentPicker from '../components/DocumentPicker'
 import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { useUI } from '../context/UIContext'
 import { api, isLocalMode } from '../lib/api'
 import { createToolbox } from '../lib/ai/tools'
 import { getAiPermissions } from '../lib/ai/permissions'
-import { CONTEXT_PREFIX, buildUserMessage, pendingToolUses, runAgent } from '../lib/ai/agent'
+import { attachmentNames, buildUserMessage, pendingToolUses, runAgent } from '../lib/ai/agent'
 import { emitItemsChanged } from '../lib/runtimeContext'
 import { loadChat, saveChat } from '../lib/ai/storage'
 import { cx } from '../lib/utils'
 
-const MAX_LOCAL_CHARS = 350_000
+const MAX_LOCAL_CHARS = 1_000_000
 
 const SUGGESTIONS = [
   '¿Qué tengo esta semana?',
@@ -27,6 +28,7 @@ const TOOL_LABELS = {
   list_modules: 'Consultar módulos',
   search_items: 'Buscar elementos',
   get_item: 'Leer elemento',
+  read_document: 'Leer documento',
   get_agenda: 'Consultar agenda',
   list_files: 'Consultar archivos',
   create_item: 'Crear elemento',
@@ -34,7 +36,7 @@ const TOOL_LABELS = {
   delete_item: 'Eliminar elemento',
 }
 
-const KIND_ICONS = { read: Search, create: FilePlus2, update: PenLine, delete: Trash2 }
+const KIND_ICONS = { read: Search, document: FileText, create: FilePlus2, update: PenLine, delete: Trash2 }
 
 const STATUS_TEXT = {
   done: 'Hecho',
@@ -48,7 +50,7 @@ const visibleUserText = (msg) =>
   typeof msg.content === 'string'
     ? msg.content
     : msg.content
-        .filter((b) => b.type === 'text' && !b.text.startsWith(CONTEXT_PREFIX))
+        .filter((b) => b.type === 'text' && !b.text.startsWith('<')) // contexto y adjuntos: no se muestran como texto
         .map((b) => b.text)
         .join('\n')
 
@@ -64,6 +66,8 @@ export default function Assistant() {
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState([])
+  const [pickerOpen, setPickerOpen] = useState(false)
   const stopRef = useRef(false)
   const endRef = useRef(null)
   const inputRef = useRef(null)
@@ -96,7 +100,7 @@ export default function Assistant() {
   const ready = !isLocalMode && status && !status.error && status.configured && status.allowed
 
   const run = useCallback(
-    async (messages) => {
+    async (messages, newKeys = []) => {
       setRunning(true)
       setError(null)
       setNotice(null)
@@ -119,6 +123,9 @@ export default function Assistant() {
             if (info.status === 'done' && info.kind !== 'read') emitItemsChanged({ type: 'ai', module: info.module })
           },
           isStopped: () => stopRef.current,
+          // Documentos ya autorizados en esta conversación (adjuntados o aprobados antes).
+          approvedKeys: new Set([...(chat.approved || []), ...newKeys]),
+          onRemember: (key) => setChat((c) => ({ ...c, approved: [...new Set([...(c.approved || []), key])] })),
         })
         if (result.status === 'refusal') setNotice('PACO AI no ha podido responder a esa petición.')
         if (result.status === 'max_tokens') setNotice('La respuesta era demasiado larga y se ha cortado. Prueba a pedirlo por partes.')
@@ -131,21 +138,23 @@ export default function Assistant() {
         setApproval(null)
       }
     },
-    [enabledModules, getModule, permissions],
+    [enabledModules, getModule, permissions, chat.approved],
   )
 
   const submit = (text) => {
     const t = (text ?? input).trim()
     if (!t || running || pending.length) return
-    const msg = buildUserMessage(t, { timezone: notificationPrefs.timezone, userName: settings.displayName })
+    const msg = buildUserMessage(t, { timezone: notificationPrefs.timezone, userName: settings.displayName, attachments })
     const next = [...chat.messages, msg]
+    const keys = attachments.map((f) => `file:${f.id}`)
     if (JSON.stringify(next).length > MAX_LOCAL_CHARS) {
       setError({ message: 'La conversación es demasiado larga. Empieza una nueva con «Nueva conversación».', code: 'conversation_too_long' })
       return
     }
-    setChat((c) => ({ ...c, messages: next }))
+    setChat((c) => ({ ...c, messages: next, approved: [...new Set([...(c.approved || []), ...keys])] }))
     setInput('')
-    run(next)
+    setAttachments([])
+    run(next, keys)
   }
 
   const stop = () => {
@@ -180,7 +189,8 @@ export default function Assistant() {
     if (running) return
     if (chat.messages.length && !(await confirm('Se borrará la conversación actual de este dispositivo.', { title: 'Nueva conversación', confirmText: 'Empezar de nuevo' })))
       return
-    setChat({ messages: [], actions: {} })
+    setChat({ messages: [], actions: {}, approved: [] })
+    setAttachments([])
     setError(null)
     setNotice(null)
     inputRef.current?.focus()
@@ -250,10 +260,22 @@ export default function Assistant() {
           {chat.messages.map((m, i) => {
             if (m.role === 'user') {
               const text = visibleUserText(m)
-              if (!text) return null
+              const docs = attachmentNames(m)
+              if (!text && !docs.length) return null
               return (
                 <div key={i} className="ai-msg user">
-                  <div className="ai-bubble">{text}</div>
+                  <div className="ai-user-turn">
+                    {docs.length > 0 && (
+                      <div className="ai-attachments">
+                        {docs.map((d, j) => (
+                          <span key={j} className="ai-attachment">
+                            <FileText size={13} /> <span className="ellipsis">{d}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {text && <div className="ai-bubble">{text}</div>}
+                  </div>
                 </div>
               )
             }
@@ -308,6 +330,18 @@ export default function Assistant() {
           <div ref={endRef} />
         </div>
 
+        {attachments.length > 0 && (
+          <div className="ai-attachments pending">
+            {attachments.map((f) => (
+              <span key={f.id} className="ai-attachment">
+                <FileText size={13} /> <span className="ellipsis">{f.name}</span>
+                <button type="button" className="icon-btn sm" onClick={() => setAttachments((a) => a.filter((x) => x.id !== f.id))} aria-label={`Quitar ${f.name}`}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <form
           className="ai-input"
           onSubmit={(e) => {
@@ -315,6 +349,16 @@ export default function Assistant() {
             submit()
           }}
         >
+          <button
+            type="button"
+            className="btn ghost ai-attach"
+            onClick={() => setPickerOpen(true)}
+            disabled={!ready || running || pending.length > 0}
+            title="Adjuntar documento (PDF o texto)"
+            aria-label="Adjuntar documento"
+          >
+            <Paperclip size={16} />
+          </button>
           <textarea
             ref={inputRef}
             rows={1}
@@ -337,8 +381,19 @@ export default function Assistant() {
           )}
         </form>
       </div>
+      {pickerOpen && (
+        <DocumentPicker
+          selected={attachments}
+          onClose={() => setPickerOpen(false)}
+          onDone={(list) => {
+            setAttachments(list)
+            setPickerOpen(false)
+            inputRef.current?.focus()
+          }}
+        />
+      )}
       <p className="muted small center ai-foot">
-        PACO AI puede equivocarse. Lo que consulta se envía al proveedor de IA (Google Gemini) para responderte; la conversación solo se guarda en este dispositivo.
+        PACO AI puede equivocarse. Lo que consulta (y el texto de los documentos que autorices) se envía al proveedor de IA (Google Gemini) para responderte; la conversación solo se guarda en este dispositivo.
       </p>
     </div>
   )
@@ -360,7 +415,7 @@ function ApprovalPanel({ approval, onDecide, onDecideAll }) {
   return (
     <div className="ai-approval card" role="dialog" aria-label="Confirmar acciones de PACO AI">
       <p className="ai-approval-title">
-        <ShieldCheck size={16} /> PACO AI quiere hacer {actions.length === 1 ? 'esto' : `${actions.length} cambios`}:
+        <ShieldCheck size={16} /> PACO AI quiere hacer {actions.length === 1 ? 'esto' : `${actions.length} cosas`}:
       </p>
       {actions.map((a) => (
         <div key={a.id} className={cx('ai-approval-item', a.danger && 'danger', a.id in decisions && 'decided')}>
@@ -374,11 +429,12 @@ function ApprovalPanel({ approval, onDecide, onDecideAll }) {
                   <X size={14} /> Rechazar
                 </button>
                 <button className={cx('btn sm', a.danger ? 'danger' : 'primary')} onClick={() => onDecide(a.id, true)}>
-                  <Check size={14} /> {a.danger ? 'Eliminar' : 'Aprobar'}
+                  <Check size={14} /> {a.danger ? 'Eliminar' : a.kind === 'document' ? 'Permitir leer' : 'Aprobar'}
                 </button>
               </div>
             )}
           </div>
+          {a.kind === 'document' && <p className="muted small ai-approval-note">Si lo permites, podrá volver a leerlo durante esta conversación.</p>}
           {a.details?.length > 0 && (
             <dl className="ai-details">
               {a.details.map((d, i) => (

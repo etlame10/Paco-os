@@ -20,7 +20,7 @@ Tecnología: React · Vite · JavaScript · CSS · Lucide React · Supabase (Aut
 | **Módulos** | Activa/desactiva módulos, cambia su orden en el menú y **crea módulos propios sin programar** (campos, estados, icono, color, vista). |
 | **Repeticiones** | Tareas y avisos que se repiten (cada día, entre semana, cada semana, cada mes, cada año): al completarlos se crea el siguiente con su aviso. |
 | **Notificaciones** | Avisos push en móvil y PC: tareas, exámenes, eventos del calendario y avisos personalizados. Campana 🔔 con recientes y próximos. Ver **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. |
-| **PACO AI** | Asistente integrado: pregúntale por tu agenda o pídele que cree, cambie o borre cosas. Antes de modificar nada te pide confirmación (permisos configurables). La clave de la IA vive solo en Supabase. Ver **[docs/PACO_AI.md](docs/PACO_AI.md)**. |
+| **PACO AI** | Asistente integrado (Gemini): pregúntale por tu agenda, pídele que cree, cambie o borre cosas, o adjúntale un PDF para resumirlo, preguntarle o crear tareas de estudio. Antes de modificar nada te pide confirmación (permisos configurables). La clave de la IA vive solo en Supabase. Ver **[docs/PACO_AI.md](docs/PACO_AI.md)**. |
 | **Ajustes** | Nombre, tema claro/oscuro/sistema, color de acento, notificaciones, exportar/importar copia de seguridad (JSON), cambiar contraseña. |
 
 Módulos incluidos de serie:

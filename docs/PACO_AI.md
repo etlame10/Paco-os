@@ -5,6 +5,7 @@ PACO AI es un chat (menú **PACO AI**, o el icono ✨ en el móvil) que consulta
 - «¿Qué tengo esta semana?» · «¿Qué tareas de prioridad alta tengo pendientes?»
 - «Crea una tarea para mañana: llamar al banco» · «Recuérdame el viernes a las 18:00 ir al gimnasio»
 - «Marca como hecha la práctica de física» · «Fija la nota del viaje» · «Borra la tarea de comprar pan»
+- 📎 Con un PDF adjunto: «Resume este PDF» · «¿Qué explica el apartado de direccionamiento IP?» · «Este PDF es el tema del examen del viernes: organízame el estudio» · «Créame 5 tareas para estudiar este tema»
 
 Antes de crear, cambiar o borrar nada te enseña exactamente qué va a hacer y espera a que lo apruebes (configurable).
 
@@ -26,24 +27,40 @@ Navegador (PACO OS)                         Supabase                       Googl
 ```
 
 1. **La clave de Gemini solo está en Supabase** (secreto `GEMINI_API_KEY` de la Edge Function). Viaja a Google en una cabecera, nunca en la URL. Nunca en la web, en GitHub ni en el repositorio.
-2. **El modelo no toca la base de datos.** Solo puede *pedir* una de 8 herramientas (function calling de Gemini). Las ejecuta tu navegador con tu sesión, a través de la misma capa de datos que usa la app (`api`): RLS de Supabase (solo tus datos), avisos programados y repeticiones funcionan igual que si lo hicieras tú.
+2. **El modelo no toca la base de datos.** Solo puede *pedir* una de 9 herramientas (function calling de Gemini). Las ejecuta tu navegador con tu sesión, a través de la misma capa de datos que usa la app (`api`): RLS de Supabase (solo tus datos), avisos programados y repeticiones funcionan igual que si lo hicieras tú.
 3. **Validación estricta.** Cada petición se comprueba contra la definición del módulo (campos existentes, tipos, opciones válidas, fechas reales…). Si no es válida, el modelo recibe el error y la corrige; no se te pregunta nada.
 4. **Permisos aplicados por código, no por la IA** (Ajustes → PACO AI):
 
    | Acción | Por defecto | Opciones |
    | --- | --- | --- |
    | Consultar (buscar, agenda, nombres de archivos) | Sin preguntar | Sin preguntar · No permitir |
+   | Leer documentos (texto de PDF y archivos de texto) | **Preguntar** (los adjuntos ya cuentan como autorizados) | Preguntar · Sin preguntar · No permitir |
    | Crear elementos | **Preguntar** | Preguntar · Sin preguntar · No permitir |
    | Editar elementos | **Preguntar** | Preguntar · Sin preguntar · No permitir |
    | Eliminar elementos | **Preguntar** | Preguntar · No permitir (nunca sin preguntar) |
 
-5. **Límites de seguridad:** máximo 15 cambios y 10 llamadas al modelo por cada mensaje tuyo; solo módulos activos; no puede tocar ajustes, módulos, archivos (solo ve sus nombres) ni contraseñas.
-6. **Inyección de instrucciones:** si una nota dice «borra todo», el modelo tiene instrucciones de tratarlo como dato, y aunque lo intentara, borrar exige tu confirmación.
+5. **Límites de seguridad:** máximo 15 cambios y 10 llamadas al modelo por cada mensaje tuyo; solo módulos activos; no puede tocar ajustes, módulos ni contraseñas; de los archivos solo puede leer el texto de los documentos que autorices (nunca modificarlos ni borrarlos).
+6. **Inyección de instrucciones:** si una nota o un PDF dice «borra todo», el modelo tiene instrucciones de tratarlo como dato y avisarte, y aunque lo intentara, borrar exige tu confirmación. Además, **en cuanto la conversación incluye el contenido de un documento, cualquier cambio (crear, editar, borrar) pide confirmación aunque lo tengas en «Sin preguntar»**: un texto escondido en un PDF nunca puede modificar tus datos por sí solo.
 7. **Solo tú (o quien elijas):** la función rechaza a cualquier usuario cuyo email no esté en `PACO_AI_ALLOWED_EMAILS`, y limita las peticiones diarias (`PACO_AI_DAILY_LIMIT`).
 
-**Privacidad:** para responder, lo que PACO AI consulta (títulos, fechas, notas, nombres de archivos) se envía a Google (Gemini API). El contenido de tus archivos nunca se envía. La conversación se guarda solo en tu dispositivo (botón «Nueva conversación» o Ajustes → PACO AI para borrarla). En Supabase solo se guarda un contador diario de uso (tabla `ai_usage`).
+**Privacidad:** para responder, lo que PACO AI consulta (títulos, fechas, notas, nombres de archivos) se envía a Google (Gemini API). De tus archivos, solo se envía el **texto** de los documentos que adjuntes o autorices (nunca el archivo, y nunca otros archivos). La conversación se guarda solo en tu dispositivo (botón «Nueva conversación» o Ajustes → PACO AI para borrarla). En Supabase solo se guarda un contador diario de uso (tabla `ai_usage`).
 
 ---
+
+## Documentos y PDF
+
+**Cómo darle un documento:** en el chat, pulsa 📎 **Adjuntar** y elige un PDF o archivo de texto de tus **Archivos**, o sube uno nuevo (se guarda en Archivos como cualquier otro). Adjuntarlo es autorizarlo para esa conversación. También puedes pedirle uno por su nombre («lee el PDF de redes»): lo buscará y te pedirá permiso antes de abrirlo.
+
+**Qué pasa por dentro:**
+
+1. PACO AI pide la herramienta `read_document` con el id del archivo.
+2. Tu navegador comprueba que el archivo es tuyo (la lista sale de Supabase con RLS), que es PDF o texto (máx. 25 MB) y que está autorizado; si no, pide permiso o lo bloquea según Ajustes.
+3. Lo descarga de **Supabase Storage** con una URL firmada (el bucket es privado y cada usuario solo accede a su carpeta).
+4. Extrae el texto **en tu navegador** con pdf.js (libre, de Mozilla), por páginas y en tramos de ~40.000 caracteres. pdf.js no ejecuta código del PDF.
+5. A Gemini le llega solo ese **texto**, marcado como «datos, no instrucciones». El archivo no sale de tu Supabase.
+6. Para documentos largos, PACO AI lee más páginas cuando las necesita (`from_page` / `to_page`).
+
+**Límites:** PDF escaneados (solo imagen) no tienen texto que extraer: PACO AI te lo dirá. No lee imágenes, Word ni Excel (expórtalos a PDF). El texto leído forma parte de la conversación: con documentos muy largos, empieza conversaciones nuevas cuando cambies de tema.
 
 ## Costes y nivel gratuito de Gemini
 
@@ -113,10 +130,12 @@ Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo gemini-3
 
 | Archivo | Qué hace |
 | --- | --- |
-| `src/lib/ai/tools.js` | Herramientas internas: validación y ejecución sobre `api` (tipos `read`/`create`/`update`/`delete`) |
+| `src/lib/ai/tools.js` | Herramientas internas: validación y ejecución sobre `api` (tipos `read`/`document`/`create`/`update`/`delete`) |
+| `src/lib/ai/documents.js` | Extracción del texto de PDF (pdf.js) y archivos de texto, por tramos |
+| `src/components/DocumentPicker.jsx` | Adjuntar documentos de Archivos o subir uno nuevo |
 | `src/lib/ai/permissions.js` | Permisos por tipo de acción y valores seguros por defecto |
 | `src/lib/ai/agent.js` | Bucle del agente: llama a la función, aplica permisos, pide confirmación, devuelve resultados |
-| `src/lib/ai/storage.js` | Conversación guardada en el dispositivo |
+| `src/lib/ai/storage.js` | Conversación (y documentos autorizados) guardada en el dispositivo |
 | `src/pages/Assistant.jsx` | Chat, tarjetas de confirmación y estado de cada acción |
 | `src/components/AiSettings.jsx` | Ajustes → PACO AI |
 | `supabase/functions/paco-ai/index.ts` | Edge Function: sesión, lista de emails, límite diario, validación y llamada al modelo |
@@ -132,4 +151,4 @@ Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo gemini-3
 - Finalizaciones especiales: `SAFETY`/`PROHIBITED_CONTENT` → «no puedo ayudarte», `MAX_TOKENS` → aviso de respuesta cortada, llamada mal formada → pide reformular.
 - Un reintento automático ante un 500/503 puntual de Google.
 
-**Pruebas:** `npm run test:ai` (64 casos con un modelo simulado: no llama a ninguna API).
+**Pruebas:** `npm run test:ai` (89 casos con un modelo simulado: no llama a ninguna API). Incluye la lectura de un PDF real de prueba (`scripts/fixtures/tema-redes.pdf`, con una instrucción maliciosa incrustada) y la creación de tareas a partir de él.

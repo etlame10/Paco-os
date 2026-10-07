@@ -8,6 +8,12 @@
 
 export const PERMISSION_KINDS = [
   { kind: 'read', label: 'Consultar tus datos', hint: 'Buscar elementos, ver la agenda y los nombres de tus archivos.', options: ['auto', 'off'] },
+  {
+    kind: 'document',
+    label: 'Leer documentos',
+    hint: 'Contenido de PDF y archivos de texto. Los que adjuntas en el chat ya cuentan como autorizados.',
+    options: ['ask', 'auto', 'off'],
+  },
   { kind: 'create', label: 'Crear elementos', hint: 'Tareas, avisos, notas…', options: ['ask', 'auto', 'off'] },
   { kind: 'update', label: 'Editar elementos', hint: 'Cambiar fechas, completar tareas, fijar…', options: ['ask', 'auto', 'off'] },
   // Borrar SIEMPRE requiere confirmación: no existe la opción "auto".
@@ -16,7 +22,7 @@ export const PERMISSION_KINDS = [
 
 export const PERMISSION_LABELS = { auto: 'Sin preguntar', ask: 'Preguntar', off: 'No permitir' }
 
-export const DEFAULT_AI_PERMISSIONS = { read: 'auto', create: 'ask', update: 'ask', delete: 'ask' }
+export const DEFAULT_AI_PERMISSIONS = { read: 'auto', document: 'ask', create: 'ask', update: 'ask', delete: 'ask' }
 
 // Permisos efectivos: valores desconocidos o no permitidos vuelven al valor seguro por defecto.
 export function getAiPermissions(settings) {
