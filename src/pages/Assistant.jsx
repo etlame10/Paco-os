@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { useUI } from '../context/UIContext'
 import { api, isLocalMode } from '../lib/api'
-import { createToolbox } from '../lib/ai/tools'
+import { createToolbox, modulesSummary } from '../lib/ai/tools'
 import { getAiPermissions } from '../lib/ai/permissions'
 import { attachmentNames, buildUserMessage, pendingToolUses, runAgent } from '../lib/ai/agent'
 import { emitItemsChanged } from '../lib/runtimeContext'
@@ -100,7 +100,11 @@ export default function Assistant() {
   const ready = !isLocalMode && status && !status.error && status.configured && status.allowed
 
   const run = useCallback(
-    async (messages, newKeys = []) => {
+    // interaction: identificador del mensaje del usuario que se está atendiendo. Todas las
+    // llamadas internas (herramientas, «Reintentar», «Continuar») lo comparten: 1 uso.
+    async (messages, newKeys = [], interaction = chat.interaction || crypto.randomUUID()) => {
+      setChat((c) => (c.interaction === interaction ? c : { ...c, interaction }))
+      const context = { modules: modulesSummary(enabledModules) }
       setRunning(true)
       setError(null)
       setNotice(null)
@@ -111,8 +115,9 @@ export default function Assistant() {
           messages,
           toolbox,
           permissions,
-          send: async (msgs) => {
-            const r = await api.ai.chat(msgs)
+          interactionId: interaction,
+          send: async (msgs, { interactionId }) => {
+            const r = await api.ai.chat(msgs, { interactionId, context })
             if (r?.usage) setUsage(r.usage)
             return r
           },
@@ -138,7 +143,7 @@ export default function Assistant() {
         setApproval(null)
       }
     },
-    [enabledModules, getModule, permissions, chat.approved],
+    [enabledModules, getModule, permissions, chat.approved, chat.interaction],
   )
 
   const submit = (text) => {
@@ -151,10 +156,11 @@ export default function Assistant() {
       setError({ message: 'La conversación es demasiado larga. Empieza una nueva con «Nueva conversación».', code: 'conversation_too_long' })
       return
     }
-    setChat((c) => ({ ...c, messages: next, approved: [...new Set([...(c.approved || []), ...keys])] }))
+    const interaction = crypto.randomUUID() // un mensaje nuevo = una interacción nueva
+    setChat((c) => ({ ...c, messages: next, interaction, approved: [...new Set([...(c.approved || []), ...keys])] }))
     setInput('')
     setAttachments([])
-    run(next, keys)
+    run(next, keys, interaction)
   }
 
   const stop = () => {
@@ -189,7 +195,7 @@ export default function Assistant() {
     if (running) return
     if (chat.messages.length && !(await confirm('Se borrará la conversación actual de este dispositivo.', { title: 'Nueva conversación', confirmText: 'Empezar de nuevo' })))
       return
-    setChat({ messages: [], actions: {}, approved: [] })
+    setChat({ messages: [], actions: {}, approved: [], interaction: null })
     setAttachments([])
     setError(null)
     setNotice(null)
@@ -219,7 +225,7 @@ export default function Assistant() {
         actions={
           <>
             {usage?.daily_limit && (
-              <span className="muted small ai-usage" title="Peticiones al modelo hoy">
+              <span className="muted small ai-usage" title="Usos de hoy (cada mensaje tuyo cuenta 1)">
                 Hoy: {usage.requests_today}/{usage.daily_limit}
               </span>
             )}

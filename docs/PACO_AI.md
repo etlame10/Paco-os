@@ -41,7 +41,7 @@ Navegador (PACO OS)                         Supabase                       Googl
 
 5. **Límites de seguridad:** máximo 15 cambios y 10 llamadas al modelo por cada mensaje tuyo; solo módulos activos; no puede tocar ajustes, módulos ni contraseñas; de los archivos solo puede leer el texto de los documentos que autorices (nunca modificarlos ni borrarlos).
 6. **Inyección de instrucciones:** si una nota o un PDF dice «borra todo», el modelo tiene instrucciones de tratarlo como dato y avisarte, y aunque lo intentara, borrar exige tu confirmación. Además, **en cuanto la conversación incluye el contenido de un documento, cualquier cambio (crear, editar, borrar) pide confirmación aunque lo tengas en «Sin preguntar»**: un texto escondido en un PDF nunca puede modificar tus datos por sí solo.
-7. **Solo tú (o quien elijas):** la función rechaza a cualquier usuario cuyo email no esté en `PACO_AI_ALLOWED_EMAILS`, y limita las peticiones diarias (`PACO_AI_DAILY_LIMIT`).
+7. **Solo tú (o quien elijas):** la función rechaza a cualquier usuario cuyo email no esté en `PACO_AI_ALLOWED_EMAILS`, y limita los usos diarios (`PACO_AI_DAILY_LIMIT`, 1.000 por defecto). **Un uso = un mensaje tuyo**, aunque PACO AI haga por dentro varias llamadas al modelo (usar herramientas, reintentar un error temporal). Si el primer paso falla del todo, el uso se devuelve.
 
 **Privacidad:** para responder, lo que PACO AI consulta (títulos, fechas, notas, nombres de archivos) se envía a Google (Gemini API). De tus archivos, solo se envía el **texto** de los documentos que adjuntes o autorices (nunca el archivo, y nunca otros archivos). La conversación se guarda solo en tu dispositivo (botón «Nueva conversación» o Ajustes → PACO AI para borrarla). En Supabase solo se guarda un contador diario de uso (tabla `ai_usage`).
 
@@ -66,7 +66,7 @@ Navegador (PACO OS)                         Supabase                       Googl
 
 PACO AI usa **Gemini API con su nivel gratuito**: sin tarjeta y sin ningún servicio de pago. Supabase sigue en 0 € (1 invocación de Edge Function por paso; el plan gratuito incluye 500.000 al mes).
 
-**Cuánto da de sí el nivel gratuito.** Google aplica límites por proyecto de peticiones por minuto (RPM), por día (RPD) y de tokens por minuto. Los cambia a menudo y los muestra para tu proyecto en **Google AI Studio → Usage / Rate limits**: esa es la cifra válida para ti. Cada mensaje tuyo suele costar **2–3 peticiones** (consultar + responder; crear algo y confirmar), así que:
+**Cuánto da de sí el nivel gratuito.** Google aplica límites por proyecto de peticiones por minuto (RPM), por día (RPD) y de tokens por minuto. Los cambia a menudo y los muestra para tu proyecto en **Google AI Studio → Usage / Rate limits**: esa es la cifra válida para ti. Cada mensaje tuyo suele costar **2–3 peticiones a Gemini** (consultar + responder; crear algo y confirmar). Ojo: eso es la cuota de Google; el contador de PACO AI («Hoy: N/1000») cuenta mensajes tuyos, no peticiones a Gemini. Así que:
 
 | Límite diario del modelo (RPD) | Mensajes aproximados al día |
 | --- | --- |
@@ -79,8 +79,8 @@ Si un día se agota la cuota, PACO AI lo dice («Se ha agotado la cuota de Gemin
 **Si se te queda corto**, sin tocar la web:
 
 - `PACO_AI_MODEL=gemini-3.5-flash-lite` (u otro Flash-Lite): modelos más ligeros con más cuota gratuita.
-- `PACO_AI_THINKING=minimal` o `low`: respuestas más rápidas y con menos tokens.
-- `PACO_AI_DAILY_LIMIT`: tu propio tope diario por usuario (por defecto 100 peticiones), para repartir la cuota.
+- `PACO_AI_THINKING=minimal`: aún más rápido (por defecto ya es `low`).
+- `PACO_AI_DAILY_LIMIT`: tu propio tope diario de mensajes por usuario (por defecto 1.000). Es un límite de seguridad de PACO OS, distinto de los límites de Google.
 
 > ⚠️ **Condiciones de Google para Europa.** Los términos adicionales de Gemini API dicen que, al ofrecer una aplicación a usuarios del Espacio Económico Europeo, Suiza o Reino Unido, solo se pueden usar los «Paid Services» (proyecto con facturación activa). PACO OS es una herramienta personal que usas tú; revisa esos términos (https://ai.google.dev/gemini-api/terms) y decide si necesitas activar la facturación. Activarla no tiene coste fijo: se paga por uso y puedes poner un presupuesto. Ventaja que sí aplica ya en la UE: según esos mismos términos, en el EEE/Suiza/Reino Unido Google trata tus datos como en el plan de pago (**no los usa para mejorar sus productos**), aunque uses la cuota gratuita.
 
@@ -88,7 +88,7 @@ Si un día se agota la cuota, PACO AI lo dice («Se ha agotado la cuota de Gemin
 
 ### 1. Base de datos
 
-Supabase → **SQL Editor** → ejecuta la **sección 8** de `supabase/schema.sql` (o el archivo completo: es idempotente y no borra nada). Crea la tabla `ai_usage` y dos funciones que solo puede usar la Edge Function.
+Supabase → **SQL Editor** → ejecuta las **secciones 8 y 9** de `supabase/schema.sql` (o el archivo completo: es idempotente y no borra nada). Crean las tablas `ai_usage` y `ai_interactions` y las funciones del contador, que solo puede usar la Edge Function.
 
 ### 2. Clave de Gemini API (gratis)
 
@@ -114,15 +114,15 @@ Supabase → **Edge Functions → Secrets** (o `supabase secrets set NOMBRE=valo
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Sí | Tu clave `AIza…` de Google AI Studio |
 | `PACO_AI_ALLOWED_EMAILS` | Sí | Tu email de PACO OS (varios separados por comas) |
-| `PACO_AI_DAILY_LIMIT` | No | Peticiones por usuario y día (100) |
+| `PACO_AI_DAILY_LIMIT` | No | Mensajes (usos) por usuario y día (1000) |
 | `PACO_AI_MODEL` | No | Modelo de Gemini. Por defecto `gemini-3.8-flash` |
-| `PACO_AI_THINKING` | No | `minimal`, `low`, `medium` o `high`. Por defecto, el del modelo |
+| `PACO_AI_THINKING` | No | `minimal`, `low` (por defecto, rápido), `medium` o `high` |
 
 No hace falta tocar GitHub ni volver a desplegar la web: el frontend no necesita ninguna variable nueva.
 
 ### 5. Comprobar
 
-Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo gemini-3.8-flash · hoy 0/100 peticiones». Si no, el mensaje indica qué falta.
+Abre PACO OS → **Ajustes → PACO AI**. Debe decir «Activo · modelo gemini-3.8-flash · hoy 0/1000 usos». Si no, el mensaje indica qué falta.
 
 ---
 

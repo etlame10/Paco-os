@@ -263,3 +263,99 @@ revoke all on function public.paco_ai_take_request(uuid, integer) from public, a
 revoke all on function public.paco_ai_add_tokens(uuid, bigint, bigint) from public, anon, authenticated;
 grant execute on function public.paco_ai_take_request(uuid, integer) to service_role;
 grant execute on function public.paco_ai_add_tokens(uuid, bigint, bigint) to service_role;
+
+-- =====================================================================
+-- 9. PACO AI: un uso = una interacción del usuario (ver docs/PACO_AI.md)
+--    Una pregunta puede necesitar varias llamadas internas al modelo (usar
+--    herramientas, reintentos...). Todas comparten el mismo interaction_id y
+--    solo la primera suma 1 al contador diario de ai_usage.
+--    Solo añade una tabla y dos funciones: no modifica ni borra nada.
+-- =====================================================================
+
+create table if not exists public.ai_interactions (
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  interaction_id uuid not null,
+  day            date not null,
+  steps          integer not null default 1,
+  created_at     timestamptz not null default now(),
+  primary key (user_id, interaction_id)
+);
+
+create index if not exists ai_interactions_day_idx on public.ai_interactions (day);
+
+alter table public.ai_interactions enable row level security;
+-- Sin políticas para usuarios: solo la Edge Function (rol de servicio) la usa.
+revoke all on public.ai_interactions from anon, authenticated;
+grant select, insert, update, delete on public.ai_interactions to service_role;
+
+-- Registra un paso de una interacción. Devuelve una fila:
+--   status = 'counted'   -> interacción nueva: suma 1 uso
+--            'continued' -> paso más de una interacción ya contada: no suma
+--            'limit'     -> límite diario alcanzado (no se registra nada)
+--            'too_many_steps' -> la interacción ya ha hecho demasiados pasos
+--   requests = usos de hoy tras la operación
+-- Bloquea la fila de uso del día: dos peticiones simultáneas no pueden saltarse el límite.
+create or replace function public.paco_ai_take_interaction(p_user uuid, p_interaction uuid, p_limit integer, p_max_steps integer)
+returns table (status text, requests integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  d date := (now() at time zone 'Europe/Madrid')::date;
+  n integer;
+  s integer;
+begin
+  insert into public.ai_usage (user_id, day, requests) values (p_user, d, 0)
+  on conflict (user_id, day) do nothing;
+  select u.requests into n from public.ai_usage u where u.user_id = p_user and u.day = d for update;
+
+  update public.ai_interactions i set steps = i.steps + 1
+   where i.user_id = p_user and i.interaction_id = p_interaction and i.steps < p_max_steps
+  returning i.steps into s;
+  if found then
+    return query select 'continued'::text, n;
+    return;
+  end if;
+  if exists (select 1 from public.ai_interactions i where i.user_id = p_user and i.interaction_id = p_interaction) then
+    return query select 'too_many_steps'::text, n;
+    return;
+  end if;
+  if n >= p_limit then
+    return query select 'limit'::text, n;
+    return;
+  end if;
+
+  insert into public.ai_interactions (user_id, interaction_id, day) values (p_user, p_interaction, d);
+  update public.ai_usage u set requests = u.requests + 1, updated_at = now()
+   where u.user_id = p_user and u.day = d
+  returning u.requests into n;
+  return query select 'counted'::text, n;
+end;
+$$;
+
+-- Si el primer paso de una interacción falla del todo (p. ej. Gemini no responde
+-- tras los reintentos), se devuelve el uso: un error no gasta cuota.
+create or replace function public.paco_ai_refund_interaction(p_user uuid, p_interaction uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  d date;
+begin
+  delete from public.ai_interactions i
+   where i.user_id = p_user and i.interaction_id = p_interaction and i.steps = 1
+  returning i.day into d;
+  if found then
+    update public.ai_usage u set requests = greatest(u.requests - 1, 0), updated_at = now()
+     where u.user_id = p_user and u.day = d;
+  end if;
+end;
+$$;
+
+revoke all on function public.paco_ai_take_interaction(uuid, uuid, integer, integer) from public, anon, authenticated;
+revoke all on function public.paco_ai_refund_interaction(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.paco_ai_take_interaction(uuid, uuid, integer, integer) to service_role;
+grant execute on function public.paco_ai_refund_interaction(uuid, uuid) to service_role;

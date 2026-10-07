@@ -2,7 +2,7 @@
 // (con un modelo simulado: no llama a ninguna API ni gasta nada).
 // Uso: npm run test:ai
 import { readFileSync } from 'node:fs'
-import { TOOL_KINDS, ToolError, createToolbox } from '../src/lib/ai/tools.js'
+import { TOOL_KINDS, ToolError, createToolbox, modulesSummary } from '../src/lib/ai/tools.js'
 import { getAiPermissions, policyFor } from '../src/lib/ai/permissions.js'
 import { MAX_STEPS, MAX_WRITES_PER_TURN, attachmentNames, buildUserMessage, runAgent } from '../src/lib/ai/agent.js'
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
@@ -509,6 +509,79 @@ const docToolbox = (api) =>
 {
   const m = buildUserMessage('Resume este PDF', { attachments: [{ id: 'f1', name: 'tema<b>«x».pdf' }] })
   ok(m.content.length === 3 && m.content[1].text.includes('file_id: f1') && attachmentNames(m).join() === 'temabx.pdf', 'adjuntos: el mensaje lleva el id autorizado y el nombre saneado', m.content[1].text)
+}
+
+// ---------- Usos: una interacción del usuario = 1 uso ----------
+{
+  // Contador simulado con la misma regla que paco_ai_take_interaction (supabase/schema.sql, sección 9).
+  const counter = { requests: 0, ids: new Set(), calls: 0 }
+  const counted = (send) => async (msgs, meta) => {
+    counter.calls++
+    if (!counter.ids.has(meta.interactionId)) {
+      counter.ids.add(meta.interactionId)
+      counter.requests++
+    }
+    return send(msgs, meta)
+  }
+  const api = fakeApi(SEED)
+  const model = scriptedModel([
+    { stop_reason: 'tool_use', content: [toolUse('s1', 'search_items', { module: 'tareas' }), toolUse('s2', 'get_agenda', { from: '2026-10-07', to: '2026-10-13' })] },
+    { stop_reason: 'tool_use', content: [toolUse('s3', 'get_item', { id: 't1' })] },
+    { stop_reason: 'tool_use', content: [toolUse('s4', 'list_files', {})] },
+    { stop_reason: 'end_turn', content: [text('Esto es lo que tienes.')] },
+  ])
+  const ids = []
+  await runAgent({
+    messages: [user('¿qué tengo?')],
+    send: counted((m, meta) => { ids.push(meta.interactionId); return model.send(m) }),
+    toolbox: docToolbox(api),
+    permissions: getAiPermissions({}),
+    approve: async () => new Set(),
+    interactionId: 'int-1',
+  })
+  ok(model.calls() === 4 && counter.requests === 1 && ids.every((i) => i === 'int-1'), 'una pregunta con 4 herramientas y 4 llamadas internas = 1 uso', { calls: model.calls(), usos: counter.requests, ids })
+
+  // «Continuar» / «Reintentar» de la misma interacción: no suma
+  const model2 = scriptedModel([{ stop_reason: 'end_turn', content: [text('Sigo.')] }])
+  await runAgent({ messages: [user('¿qué tengo?')], send: counted((m) => model2.send(m)), toolbox: toolbox(fakeApi()), permissions: getAiPermissions({}), approve: async () => new Set(), interactionId: 'int-1' })
+  ok(counter.requests === 1, 'continuar la misma interacción no suma usos', counter.requests)
+
+  const model3 = scriptedModel([{ stop_reason: 'end_turn', content: [text('Hola.')] }])
+  await runAgent({ messages: [user('hola')], send: counted((m) => model3.send(m)), toolbox: toolbox(fakeApi()), permissions: getAiPermissions({}), approve: async () => new Set(), interactionId: 'int-2' })
+  ok(counter.requests === 2 && counter.calls === 6, 'un mensaje nuevo = 1 uso más (2 usos con 6 llamadas internas)', counter)
+}
+{
+  const src = readFileSync(new URL('../supabase/functions/paco-ai/index.ts', import.meta.url), 'utf8')
+  const sql = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8')
+  ok(/const DEFAULT_DAILY_LIMIT = 1000\b/.test(src) && /PACO_AI_DAILY_LIMIT.*DEFAULT_DAILY_LIMIT/.test(src), 'límite diario por defecto: 1000')
+  ok(/rpc\('paco_ai_take_interaction'/.test(src) && !/rpc\('paco_ai_take_request'/.test(src), 'la Edge Function cuenta por interacción (no por llamada al modelo)')
+  ok(/create or replace function public\.paco_ai_take_interaction/.test(sql) && /for update/.test(sql) && /paco_ai_refund_interaction/.test(sql), 'schema.sql: contador atómico por interacción y devolución si falla')
+  ok(/const DEFAULT_THINKING = 'LOW'/.test(src), 'thinking LOW por defecto')
+  ok(/RETRY_DELAYS_MS = \[800, 2000\]/.test(src) && /TOTAL_BUDGET_MS/.test(src), 'reintentos acotados con esperas crecientes')
+  ok(/gemini-3\.8-flash/.test(src), 'modelo por defecto gemini-3.8-flash')
+}
+
+// ---------- Latencia: consultas en paralelo, cambios en orden ----------
+{
+  const log = []
+  const slow = (name, ms, kind = 'read') => ({ name, kind, title: name, details: [], run: async () => { log.push(`start ${name}`); await new Promise((r) => setTimeout(r, ms)); log.push(`end ${name}`); return { ok: true } } })
+  const tb = { async prepare(name) { return { r1: slow('r1', 120), r2: slow('r2', 120), r3: slow('r3', 120), w1: slow('w1', 10, 'create'), r4: slow('r4', 10) }[name] } }
+  const model = scriptedModel([
+    { stop_reason: 'tool_use', content: ['r1', 'r2', 'r3', 'w1', 'r4'].map((n) => toolUse(n, n, {})) },
+    { stop_reason: 'end_turn', content: [text('ok')] },
+  ])
+  const t0 = Date.now()
+  const res = await runAgent({ messages: [user('x')], send: model.send, toolbox: tb, permissions: { ...getAiPermissions({}), create: 'auto' }, approve: async () => new Set() })
+  const took = Date.now() - t0
+  ok(took < 300, `3 consultas de 120 ms se hacen a la vez (${took} ms en total, en serie serían 360+)`, took)
+  ok(log.indexOf('start w1') > log.indexOf('end r3') && log.indexOf('start r4') > log.indexOf('end w1'), 'un cambio espera a las consultas anteriores y las posteriores esperan al cambio', log)
+  ok(res.messages[2].content.map((r) => r.tool_use_id).join() === 'r1,r2,r3,w1,r4', 'los resultados vuelven en el orden pedido')
+}
+{
+  const s = modulesSummary(MODULES)
+  const t = s.find((m) => m.id === 'tareas')
+  ok(s.map((m) => m.id).join() === 'tareas,avisos,notas' && t.fields.includes('title*:text') && t.fields.includes('priority:select(alta|media|baja)') && t.done === 'hecha' && t.reminder, 'resumen de módulos para no gastar un paso en list_modules', t)
+  ok(JSON.stringify(s).length < 15000, 'el resumen de módulos es compacto')
 }
 
 console.log(`\n${count - fail}/${count} pruebas correctas`)

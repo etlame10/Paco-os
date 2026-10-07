@@ -70,6 +70,24 @@ function compactItem(item, bodyMax = BODY_PREVIEW) {
   return out
 }
 
+// Resumen compacto de los módulos activos que acompaña a cada petición, para que el
+// modelo pueda crear o editar sin gastar un paso en list_modules.
+// Formato de cada campo: "clave*:tipo(opcion|opcion)" (* = obligatorio).
+export function modulesSummary(modules) {
+  return modules
+    .filter((m) => m.usesItems !== false)
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      ...(m.itemName ? { item: m.itemName } : {}),
+      ...(m.recurrence ? { done: m.recurrence.doneStatus } : {}),
+      ...(acceptsReminder(m) ? { reminder: true } : {}),
+      fields: (m.fields || [])
+        .filter((f) => !f.readOnly)
+        .map((f) => `${f.key}${f.required ? '*' : ''}:${f.type}${f.options ? `(${f.options.map((o) => o.value).join('|')})` : ''}`),
+    }))
+}
+
 function describeField(f) {
   const d = { key: f.key, label: f.label, type: f.type }
   if (f.required) d.required = true

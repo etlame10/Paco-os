@@ -86,6 +86,9 @@ export async function runAgent({
   isStopped = () => false,
   approvedKeys = new Set(), // documentos ya autorizados en esta conversación ("file:<id>")
   onRemember = () => {},
+  // Identificador del mensaje del usuario: todas las llamadas internas lo comparten y
+  // el servidor solo cuenta 1 uso por interacción.
+  interactionId = null,
 }) {
   const msgs = [...messages]
   const push = (m) => {
@@ -110,7 +113,7 @@ export async function runAgent({
     if (steps >= MAX_STEPS) return { status: 'limit', messages: msgs }
     steps++
 
-    const res = await send(msgs)
+    const res = await send(msgs, { interactionId })
     const content = Array.isArray(res.content) ? res.content : []
 
     if (res.stop_reason === 'refusal') {
@@ -192,21 +195,33 @@ export async function runAgent({
       }
     }
 
-    // Se ejecutan en el orden en que las pidió el modelo.
-    for (const u of uses) {
-      const a = ready.find((r) => r.id === u.id)
-      if (!a) continue
+    const execute = async (a) => {
       const info = { title: a.title, kind: a.kind, module: a.module, details: a.details, danger: a.danger }
       try {
         const out = await a.run()
         if (WRITE_KINDS.has(a.kind)) writes++
-        results.set(u.id, resultBlock(u.id, out))
-        onAction(u.id, { ...info, status: 'done' })
+        results.set(a.id, resultBlock(a.id, out))
+        onAction(a.id, { ...info, status: 'done' })
       } catch (e) {
-        results.set(u.id, resultBlock(u.id, `Error al ejecutar: ${e.message || 'desconocido'}`, true))
-        onAction(u.id, { ...info, status: 'error', error: e.message })
+        results.set(a.id, resultBlock(a.id, `Error al ejecutar: ${e.message || 'desconocido'}`, true))
+        onAction(a.id, { ...info, status: 'error', error: e.message })
       }
     }
+    // Se respeta el orden en que las pidió el modelo, pero las consultas seguidas
+    // (buscar, agenda, leer...) se ejecutan a la vez; los cambios, de uno en uno.
+    let reads = []
+    for (const u of uses) {
+      const a = ready.find((r) => r.id === u.id)
+      if (!a) continue
+      if (!WRITE_KINDS.has(a.kind)) {
+        reads.push(a)
+        continue
+      }
+      await Promise.all(reads.map(execute))
+      reads = []
+      await execute(a)
+    }
+    await Promise.all(reads.map(execute))
     return uses.map((u) => results.get(u.id))
   }
 }

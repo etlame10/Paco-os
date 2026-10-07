@@ -6,7 +6,9 @@
 //     web, en GitHub ni en el repositorio.
 //   - Solo responde a usuarios con sesión iniciada de PACO OS y que estén en la
 //     lista PACO_AI_ALLOWED_EMAILS (evita que otra cuenta gaste tu cuota).
-//   - Límite diario de peticiones por usuario (tabla ai_usage).
+//   - Límite diario de USOS por usuario (tabla ai_usage): un uso = una interacción
+//     del usuario (un mensaje suyo), aunque PACO AI haga varias llamadas internas al
+//     modelo para usar herramientas o reintente por un error temporal.
 //   - El modelo NO accede a la base de datos: solo puede PEDIR herramientas
 //     (function calling de Gemini). Las ejecuta el navegador del usuario con su
 //     sesión (RLS) y, si son cambios, tras su confirmación (src/lib/ai/).
@@ -18,14 +20,16 @@
 //
 // Acciones (POST JSON):
 //   { "action": "status" }              -> configuración y uso de hoy (no gasta nada)
-//   { "action": "chat", "messages": [] } -> un paso de la conversación
+//   { "action": "chat", "messages": [], "interaction_id": "<uuid>", "context": {...} }
+//                                         -> un paso de la conversación. Todos los pasos de
+//                                            un mismo mensaje del usuario comparten interaction_id.
 //
 // Secretos (Supabase > Edge Functions > Secrets):
 //   GEMINI_API_KEY           (obligatorio) clave de https://aistudio.google.com/apikey
 //   PACO_AI_ALLOWED_EMAILS   (obligatorio) emails que pueden usar PACO AI, separados por comas
-//   PACO_AI_DAILY_LIMIT      (opcional) peticiones al modelo por usuario y día. Por defecto 100
+//   PACO_AI_DAILY_LIMIT      (opcional) interacciones por usuario y día. Por defecto 1000
 //   PACO_AI_MODEL            (opcional) modelo de Gemini. Por defecto gemini-3.8-flash
-//   PACO_AI_THINKING         (opcional) minimal | low | medium | high. Por defecto, el del modelo
+//   PACO_AI_THINKING         (opcional) minimal | low | medium | high. Por defecto low (rápido)
 // SUPABASE_URL y la clave de servicio los añade Supabase automáticamente.
 //
 // Al publicarla en el panel: desactiva "Verify JWT" (la función comprueba ella
@@ -39,6 +43,18 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta'
 const MAX_OUTPUT_TOKENS = 8192
 const MAX_MESSAGES = 160
 const MAX_BODY_CHARS = 1_200_000 // admite el texto de varios tramos de documentos
+const DEFAULT_DAILY_LIMIT = 1000
+// Pasos internos máximos de una misma interacción (el navegador hace como mucho 10 por
+// mensaje; «Continuar» puede añadir más). Evita reutilizar un id para no gastar usos.
+const MAX_STEPS_PER_INTERACTION = 30
+const DEFAULT_THINKING = 'LOW'
+// Reintentos ante errores temporales de Gemini: esperas crecientes y un tiempo total acotado.
+const RETRY_STATUS = new Set([500, 502, 503, 504])
+const RETRY_DELAYS_MS = [800, 2000]
+const ATTEMPT_TIMEOUT_MS = 50_000
+const TOTAL_BUDGET_MS = 115_000
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_CONTEXT_CHARS = 15_000
 
 // --- PACO_AI TOOLS START (deben coincidir con src/lib/ai/tools.js; lo comprueba npm run test:ai) ---
 // Declaraciones de función de Gemini: los parámetros se describen con JSON Schema (parametersJsonSchema).
@@ -149,7 +165,8 @@ Cómo trabajas:
 - Responde siempre en español, de forma breve, clara y cercana. Usa Markdown sencillo (listas y **negrita**) solo cuando ayude.
 - Tienes herramientas para consultar y modificar los datos de PACO OS. Úsalas para responder con datos reales; no inventes elementos, fechas ni ids. Si no encuentras algo, dilo.
 - Cada mensaje del usuario lleva un bloque <contexto_app> con la fecha, la hora y la zona horaria actuales: úsalo para interpretar «hoy», «mañana», «el viernes» o «la semana que viene». Las fechas van en formato YYYY-MM-DD.
-- Antes de crear o editar en un módulo cuyos campos no conoces, llama a list_modules. Usa solo valores válidos para los campos de tipo lista.
+- Los módulos activos del usuario y sus campos vienen en <modulos_usuario>: úsalos directamente para crear o editar (campos con * son obligatorios; entre paréntesis, los valores válidos). Llama a list_modules solo si falta ese bloque o necesitas más detalle.
+- Para responder rápido: si necesitas varias consultas independientes, pídelas todas en el mismo paso; no repitas consultas cuyo resultado ya tienes en la conversación; si ya tienes lo necesario, responde sin más herramientas.
 - Para editar o borrar, localiza primero el elemento exacto (search_items) y usa su id. Si hay varios candidatos y no está claro cuál es, pregunta.
 - Elige el módulo adecuado: cosas por hacer en "tareas"; recordatorios con hora concreta en "avisos" (campo hora); exámenes y asignaturas en "estudios"; etc.
 - Las acciones que cambian datos pueden necesitar la aprobación del usuario: la app se la pide automáticamente al usar la herramienta, así que no pidas permiso por texto para peticiones claras; hazlas directamente. Si una acción es rechazada o no está permitida, no insistas y explícaselo en una frase.
@@ -198,8 +215,8 @@ function allowedEmails() {
 }
 
 function dailyLimit() {
-  const n = Number(env('PACO_AI_DAILY_LIMIT') || 100)
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100
+  const n = Number(env('PACO_AI_DAILY_LIMIT') || DEFAULT_DAILY_LIMIT)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_DAILY_LIMIT
 }
 
 // --- Validación de la conversación que envía el navegador ---
@@ -322,31 +339,64 @@ function fromGemini(data: any) {
   return { content, stop_reason: reason === 'MAX_TOKENS' ? 'max_tokens' : 'end_turn' }
 }
 
-async function callGemini(apiKey: string, model: string, contents: any[]) {
-  const thinking = env('PACO_AI_THINKING').toUpperCase()
+function thinkingLevel() {
+  const v = env('PACO_AI_THINKING').toUpperCase()
+  if (v === 'DEFAULT') return null // el del modelo
+  return ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'].includes(v) ? v : DEFAULT_THINKING
+}
+
+// Módulos activos del usuario (los envía el navegador) para que el modelo no tenga que
+// gastar un paso en list_modules. Es configuración del propio usuario; se acota y se
+// quitan "<" y ">" para que no pueda imitar las etiquetas de la app.
+function modulesInstruction(context: any) {
+  const mods = Array.isArray(context?.modules) ? context.modules : null
+  if (!mods?.length) return null
+  const text = JSON.stringify(mods).replace(/[<>]/g, ' ')
+  if (text.length > MAX_CONTEXT_CHARS) return null
+  return `<modulos_usuario>${text}</modulos_usuario>`
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function callGemini(apiKey: string, model: string, contents: any[], extraSystem: string | null) {
+  const level = thinkingLevel()
   const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }, ...(extraSystem ? [{ text: extraSystem }] : [])] },
     contents,
     tools: [{ functionDeclarations: TOOLS }],
     toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
     generationConfig: {
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      ...(['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'].includes(thinking) ? { thinkingConfig: { thinkingLevel: thinking } } : {}),
+      ...(level ? { thinkingConfig: { thinkingLevel: level } } : {}),
     },
   })
   // GEMINI_BASE_URL solo se usa en las pruebas locales (servidor simulado).
   const base = env('GEMINI_BASE_URL') || GEMINI_URL
   const url = `${base}/models/${encodeURIComponent(model)}:generateContent`
+  const started = Date.now()
   for (let attempt = 0; ; attempt++) {
-    // La clave va en una cabecera, nunca en la URL (no queda en registros).
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body,
-      signal: AbortSignal.timeout(120_000),
-    })
-    if ((res.status === 500 || res.status === 503) && attempt === 0) {
-      await new Promise((r) => setTimeout(r, 1500))
+    const delay = RETRY_DELAYS_MS[attempt]
+    const canRetry = () => delay !== undefined && Date.now() - started + delay + ATTEMPT_TIMEOUT_MS < TOTAL_BUDGET_MS
+    let res
+    try {
+      // La clave va en una cabecera, nunca en la URL (no queda en registros).
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+      })
+    } catch (e) {
+      // Error de red o tiempo agotado: se reintenta igual que un 503.
+      if (canRetry()) {
+        await sleep(delay + Math.floor(Math.random() * 300))
+        continue
+      }
+      throw e
+    }
+    if (RETRY_STATUS.has(res.status) && canRetry()) {
+      await res.body?.cancel()
+      await sleep(delay + Math.floor(Math.random() * 300))
       continue
     }
     return res
@@ -365,7 +415,7 @@ function geminiError(status: number, detail: any, model: string) {
   return json({ error: 'El servicio de IA no está disponible ahora mismo.', code: 'provider' }, 502)
 }
 
-// El día se cuenta en hora de Madrid (igual que paco_ai_take_request en la base de datos).
+// El día se cuenta en hora de Madrid (igual que paco_ai_take_interaction en la base de datos).
 const madridToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(new Date())
 
 async function usageToday(db: any, userId: string) {
@@ -424,22 +474,42 @@ Deno.serve(async (req) => {
   if (problem === 'conversation_too_long') return json({ error: 'La conversación es demasiado larga. Empieza una nueva.', code: problem }, 413)
   if (problem) return json({ error: problem, code: 'bad_request' }, 400)
 
-  // 4) Límite diario (se cuenta antes de llamar al modelo; atómico en la base de datos)
-  const { data: count, error: quotaError } = await db.rpc('paco_ai_take_request', { p_user: user.id, p_limit: limit })
+  // 4) Límite diario por INTERACCIÓN: todos los pasos de un mismo mensaje del usuario
+  // comparten interaction_id y solo el primero suma un uso (atómico en la base de datos).
+  // Navegadores con una versión antigua de la app no lo envían: cada paso cuenta como antes.
+  const interactionId = typeof body.interaction_id === 'string' && UUID_RE.test(body.interaction_id) ? body.interaction_id : crypto.randomUUID()
+  const { data: quota, error: quotaError } = await db.rpc('paco_ai_take_interaction', {
+    p_user: user.id,
+    p_interaction: interactionId,
+    p_limit: limit,
+    p_max_steps: MAX_STEPS_PER_INTERACTION,
+  })
   if (quotaError) {
     console.error(quotaError)
-    return json({ error: 'No se pudo comprobar el límite diario. ¿Has ejecutado la sección 8 de supabase/schema.sql?', code: 'not_configured' }, 500)
+    return json({ error: 'No se pudo comprobar el límite diario. ¿Has ejecutado la sección 9 de supabase/schema.sql?', code: 'not_configured' }, 500)
   }
-  if (count === null || count === undefined) {
-    return json({ error: `Has alcanzado el límite diario de ${limit} peticiones a PACO AI. Mañana se reinicia.`, code: 'daily_limit' }, 429)
+  const q = Array.isArray(quota) ? quota[0] : quota
+  if (q?.status === 'limit') {
+    return json({ error: `Has alcanzado el límite diario de ${limit} usos de PACO AI. Mañana se reinicia.`, code: 'daily_limit' }, 429)
   }
+  if (q?.status === 'too_many_steps') {
+    return json({ error: 'Esta petición ha necesitado demasiados pasos. Escribe un mensaje nuevo para continuar.', code: 'too_many_steps' }, 429)
+  }
+  if (q?.status !== 'counted' && q?.status !== 'continued') return json({ error: 'No se pudo comprobar el límite diario.', code: 'provider' }, 500)
+  const count = q.requests
+  // Si el primer paso de una interacción falla del todo, el uso se devuelve.
+  const refund = () =>
+    q.status === 'counted'
+      ? db.rpc('paco_ai_refund_interaction', { p_user: user.id, p_interaction: interactionId }).then(({ error }: any) => error && console.error(error))
+      : Promise.resolve()
 
-  // 5) Llamada a Gemini
+  // 5) Llamada a Gemini (con reintentos ante errores temporales, que no suman usos)
   try {
-    const res = await callGemini(apiKey, model, toGeminiContents(body.messages))
+    const res = await callGemini(apiKey, model, toGeminiContents(body.messages), modulesInstruction(body.context))
     const data = await res.json().catch(() => null)
     if (!res.ok) {
       console.error('Gemini', res.status, JSON.stringify(data)?.slice(0, 500))
+      await refund()
       return geminiError(res.status, data, model)
     }
     const { content, stop_reason } = fromGemini(data)
@@ -447,13 +517,20 @@ Deno.serve(async (req) => {
     const u = data?.usageMetadata || {}
     const input = (u.promptTokenCount || 0) + (u.toolUsePromptTokenCount || 0)
     const output = (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0)
-    await db
-      .rpc('paco_ai_add_tokens', { p_user: user.id, p_input: input, p_output: output })
-      .then(({ error }: any) => error && console.error(error))
+    // El registro de tokens no retrasa la respuesta.
+    background(Promise.resolve(db.rpc('paco_ai_add_tokens', { p_user: user.id, p_input: input, p_output: output })).then(({ error }: any) => error && console.error(error)))
 
     return json({ content, stop_reason, model: data?.modelVersion || model, usage: { requests_today: count, daily_limit: limit } })
   } catch (e) {
     console.error(e)
+    await refund()
     return json({ error: 'No se pudo contactar con el servicio de IA.', code: 'provider' }, 502)
   }
 })
+
+// Tareas que pueden terminar después de responder (Supabase Edge Runtime las espera).
+function background(p: Promise<unknown>) {
+  const rt = (globalThis as any).EdgeRuntime
+  if (rt?.waitUntil) rt.waitUntil(p)
+  else p.catch(() => {})
+}

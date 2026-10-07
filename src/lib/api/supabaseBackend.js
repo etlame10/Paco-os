@@ -269,8 +269,9 @@ export const supabaseBackend = {
     async status() {
       return invokeAi({ action: 'status' })
     },
-    async chat(messages) {
-      return invokeAi({ action: 'chat', messages })
+    // interactionId: el mismo en todos los pasos de un mensaje del usuario (cuenta como 1 uso).
+    async chat(messages, { interactionId, context } = {}) {
+      return invokeAi({ action: 'chat', messages, interaction_id: interactionId, context })
     },
   },
 }

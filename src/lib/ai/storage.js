@@ -4,11 +4,19 @@ const keyFor = (userId) => `pacoos.ai.chat.${userId}`
 export function loadChat(userId) {
   try {
     const c = JSON.parse(localStorage.getItem(keyFor(userId)))
-    if (Array.isArray(c?.messages)) return { messages: c.messages, actions: c.actions || {}, approved: Array.isArray(c.approved) ? c.approved : [] }
+    if (Array.isArray(c?.messages)) {
+      return {
+        messages: c.messages,
+        actions: c.actions || {},
+        approved: Array.isArray(c.approved) ? c.approved : [],
+        // Interacción en curso: «Continuar» o «Reintentar» tras recargar no gastan otro uso.
+        interaction: typeof c.interaction === 'string' ? c.interaction : null,
+      }
+    }
   } catch {
     /* sin conversación guardada */
   }
-  return { messages: [], actions: {}, approved: [] }
+  return { messages: [], actions: {}, approved: [], interaction: null }
 }
 
 export function saveChat(userId, chat) {
