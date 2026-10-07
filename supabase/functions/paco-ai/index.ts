@@ -4,8 +4,9 @@
 // Puente seguro entre PACO OS y el modelo de IA (Groq API, modelo openai/gpt-oss-120b).
 //   - La clave de Groq vive SOLO aquí, como secreto de Supabase (GROQ_API_KEY).
 //     Nunca en la web, en GitHub ni en el repositorio.
-//   - Solo responde a usuarios con sesión iniciada de PACO OS y que estén en la
-//     lista PACO_AI_ALLOWED_EMAILS (evita que otra cuenta gaste tu cuota).
+//   - Solo responde a usuarios con sesión iniciada de PACO OS y con el correo confirmado.
+//     Cualquier cuenta registrada y confirmada tiene acceso (sin lista manual de correos);
+//     cada una tiene su propio límite diario.
 //   - Límite diario de USOS por usuario (tabla ai_usage): un uso = una interacción
 //     del usuario (un mensaje suyo), aunque PACO AI haga varias llamadas internas al
 //     modelo para usar herramientas o reintente por un error temporal.
@@ -26,7 +27,6 @@
 //
 // Secretos (Supabase > Edge Functions > Secrets):
 //   GROQ_API_KEY             (obligatorio) clave de https://console.groq.com/keys
-//   PACO_AI_ALLOWED_EMAILS   (obligatorio) emails que pueden usar PACO AI, separados por comas
 //   PACO_AI_DAILY_LIMIT      (opcional) interacciones por usuario y día. Por defecto 1000
 //   PACO_AI_MODEL            (opcional) modelo de Groq. Por defecto openai/gpt-oss-120b
 //   PACO_AI_THINKING         (opcional) esfuerzo de razonamiento: low | medium | high.
@@ -223,11 +223,9 @@ function serviceKey() {
   }
 }
 
-function allowedEmails() {
-  return env('PACO_AI_ALLOWED_EMAILS')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
+// Acceso a PACO AI: cualquier usuario registrado con el correo confirmado (no anónimo).
+function hasAccess(user: any) {
+  return Boolean(user?.email && (user.email_confirmed_at || user.confirmed_at) && !user.is_anonymous)
 }
 
 function dailyLimit() {
@@ -518,17 +516,16 @@ Deno.serve(async (req) => {
     return json({ error: 'Petición no válida' }, 400)
   }
 
-  // 2) Configuración y lista de usuarios permitidos
+  // 2) Configuración y acceso (todas las cuentas registradas con el correo confirmado)
   const apiKey = env('GROQ_API_KEY')
-  const emails = allowedEmails()
-  const allowed = emails.includes((user.email || '').toLowerCase())
+  const allowed = hasAccess(user)
   const limit = dailyLimit()
   const model = env('PACO_AI_MODEL') || DEFAULT_MODEL
   if (!/^[A-Za-z0-9._\/:-]+$/.test(model)) return json({ error: 'El secreto PACO_AI_MODEL no es válido.', code: 'not_configured' }, 500)
 
   if (body.action === 'status') {
     return json({
-      configured: Boolean(apiKey && emails.length),
+      configured: Boolean(apiKey),
       allowed,
       model,
       daily_limit: limit,
@@ -537,8 +534,7 @@ Deno.serve(async (req) => {
   }
   if (body.action !== 'chat') return json({ error: 'Acción no permitida' }, 400)
   if (!apiKey) return json({ error: 'PACO AI no está configurado: falta el secreto GROQ_API_KEY en la Edge Function.', code: 'not_configured' }, 503)
-  if (!emails.length) return json({ error: 'PACO AI no está configurado: falta el secreto PACO_AI_ALLOWED_EMAILS.', code: 'not_configured' }, 503)
-  if (!allowed) return json({ error: 'Tu cuenta no tiene acceso a PACO AI (no está en PACO_AI_ALLOWED_EMAILS).', code: 'forbidden' }, 403)
+  if (!allowed) return json({ error: 'Confirma tu correo electrónico para usar PACO AI.', code: 'forbidden' }, 403)
 
   // 3) Conversación válida
   const problem = validateMessages(body.messages)

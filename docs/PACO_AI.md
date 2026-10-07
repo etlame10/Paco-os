@@ -18,7 +18,7 @@ Navegador (PACO OS)                         Supabase                       Groq
 ┌──────────────────────────┐   sesión   ┌───────────────────────┐  clave  ┌──────────┐
 │ Chat + bucle del agente  │ ─────────► │ Edge Function paco-ai │ ──────► │ gpt-oss  │
 │ (src/lib/ai/agent.js)    │ ◄───────── │ · comprueba la sesión │ ◄────── │  -120b   │
-│                          │            │ · lista de emails     │         └──────────┘
+│                          │            │ · correo confirmado   │         └──────────┘
 │ Herramientas internas    │            │ · límite diario       │
 │ (src/lib/ai/tools.js)    │            │ · guarda la clave     │
 │  └─ api (RLS, avisos,    │            └───────────────────────┘
@@ -41,7 +41,7 @@ Navegador (PACO OS)                         Supabase                       Groq
 
 5. **Límites de seguridad:** máximo 15 cambios y 10 llamadas al modelo por cada mensaje tuyo; solo módulos activos; no puede tocar ajustes, módulos ni contraseñas; de los archivos solo puede leer el texto de los documentos que autorices (nunca modificarlos ni borrarlos).
 6. **Inyección de instrucciones:** si una nota o un PDF dice «borra todo», el modelo tiene instrucciones de tratarlo como dato y avisarte, y aunque lo intentara, borrar exige tu confirmación. Además, **en cuanto la conversación incluye el contenido de un documento, cualquier cambio (crear, editar, borrar) pide confirmación aunque lo tengas en «Sin preguntar»**: un texto escondido en un PDF nunca puede modificar tus datos por sí solo.
-7. **Solo tú (o quien elijas):** la función rechaza a cualquier usuario cuyo email no esté en `PACO_AI_ALLOWED_EMAILS`, y limita los usos diarios (`PACO_AI_DAILY_LIMIT`, 1.000 por defecto). **Un uso = un mensaje tuyo**, aunque PACO AI haga por dentro varias llamadas al modelo (usar herramientas, reintentar un error temporal). Si el primer paso falla del todo, el uso se devuelve.
+7. **Solo cuentas de PACO OS:** cualquier usuario registrado con el **correo confirmado** puede usar PACO AI (no hay que añadir correos a mano); sin sesión o sin confirmar, la función lo rechaza. Cada cuenta tiene su propio límite de usos diarios (`PACO_AI_DAILY_LIMIT`, 1.000 por defecto), pero **el límite de Groq es uno solo para todas las cuentas** (ver «Costes»): si hay varios usuarios, conviene bajar `PACO_AI_DAILY_LIMIT`. **Un uso = un mensaje tuyo**, aunque PACO AI haga por dentro varias llamadas al modelo (usar herramientas, reintentar un error temporal). Si el primer paso falla del todo, el uso se devuelve.
 
 **Privacidad:** para responder, lo que PACO AI consulta (títulos, fechas, notas, nombres de archivos) se envía a Groq (el proveedor del modelo). De tus archivos, solo se envía el **texto** de los documentos que adjuntes o autorices (nunca el archivo, y nunca otros archivos). La conversación se guarda solo en tu dispositivo (botón «Nueva conversación» o Ajustes → PACO AI para borrarla). En Supabase solo se guarda un contador diario de uso (tabla `ai_usage`).
 
@@ -105,14 +105,13 @@ Supabase → **Edge Functions → Secrets** (o `supabase secrets set NOMBRE=valo
 | Secreto | Obligatorio | Valor |
 | --- | --- | --- |
 | `GROQ_API_KEY` | Sí | Tu clave `gsk_…` de Groq |
-| `PACO_AI_ALLOWED_EMAILS` | Sí | Tu email de PACO OS (varios separados por comas) |
 | `PACO_AI_DAILY_LIMIT` | No | Mensajes (usos) por usuario y día (1000) |
 | `PACO_AI_MODEL` | No | Modelo de Groq. Por defecto `openai/gpt-oss-120b` |
 | `PACO_AI_THINKING` | No | Esfuerzo de razonamiento: `low` (por defecto, rápido), `medium` o `high` (`minimal` = `low`) |
 | `PACO_AI_MAX_PROMPT_CHARS` | No | Conversación máxima por petición (12000) |
 | `PACO_AI_MAX_OUTPUT_TOKENS` | No | Salida máxima por paso (1024) |
 
-`GEMINI_API_KEY` ya no se usa: puedes borrarlo cuando quieras (no molesta si se queda).
+`GEMINI_API_KEY` y `PACO_AI_ALLOWED_EMAILS` ya no se usan: puedes borrarlos cuando quieras (no molestan si se quedan). Todas las cuentas registradas con el correo confirmado tienen acceso.
 
 No hace falta tocar GitHub ni volver a desplegar la web: el frontend no necesita ninguna variable nueva.
 
@@ -150,7 +149,7 @@ Para iniciar sesión en `http://localhost:5173` con email y contraseña no hay q
 | `src/lib/ai/storage.js` | Conversación (y documentos autorizados) guardada en el dispositivo |
 | `src/pages/Assistant.jsx` | Chat, tarjetas de confirmación y estado de cada acción |
 | `src/components/AiSettings.jsx` | Ajustes → PACO AI |
-| `supabase/functions/paco-ai/index.ts` | Edge Function: sesión, lista de emails, límite diario, validación y llamada al modelo |
+| `supabase/functions/paco-ai/index.ts` | Edge Function: sesión, correo confirmado, límite diario, validación y llamada al modelo |
 
 **Añadir una herramienta:** añade su esquema en el bloque `PACO_AI TOOLS` de la Edge Function, su tipo en `TOOL_KINDS` y su manejador en `createToolbox` (`tools.js`). `npm run test:ai` comprueba que ambos lados coinciden. Cualquier herramienta que cambie datos debe tener tipo `create`, `update` o `delete` para que pase por los permisos.
 

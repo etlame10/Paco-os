@@ -477,8 +477,8 @@ function SetupNotice({ status }) {
         ? ` Motivo: ${supabaseEnvProblem}. Revisa el archivo .env.local (nombre exacto, en la carpeta del proyecto y guardado en UTF-8) y reinicia npm run dev.`
         : '')
   else if (status.error) text = status.error
-  else if (!status.configured) text = 'Falta configurar PACO AI en Supabase (clave de la IA y emails permitidos).'
-  else if (!status.allowed) text = 'Tu cuenta no está en la lista de emails permitidos (PACO_AI_ALLOWED_EMAILS).'
+  else if (!status.configured) text = 'Falta configurar PACO AI en Supabase (secreto GROQ_API_KEY).'
+  else if (!status.allowed) text = 'Confirma tu correo electrónico para usar PACO AI.'
   return (
     <div className="notice ai-setup">
       <AlertTriangle size={18} />

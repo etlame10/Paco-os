@@ -58,7 +58,7 @@ export default function AiSettings() {
                 : !status.configured
                   ? 'Falta configurar la Edge Function "paco-ai" (ver docs/PACO_AI.md).'
                   : !status.allowed
-                    ? 'Tu cuenta no está en PACO_AI_ALLOWED_EMAILS.'
+                    ? 'Confirma tu correo electrónico para usar PACO AI.'
                     : `Activo · modelo ${status.model} · hoy ${status.requests_today}/${status.daily_limit} usos.`}
         </span>
       </div>
