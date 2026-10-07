@@ -68,8 +68,9 @@ PACO AI usa **Groq** con el modelo `openai/gpt-oss-120b` y su **plan gratuito**:
 
 **Límites del plan gratuito para este modelo** (según la documentación de Groq en 2026; la cifra válida para ti aparece en https://console.groq.com/settings/limits): unas **30 peticiones/minuto, 1.000 peticiones/día, 8.000 tokens/minuto y 200.000 tokens/día**, por organización.
 
-- Cada mensaje tuyo suele costar **2–3 peticiones** a Groq (consultar + responder; crear y confirmar). Con 1.000 peticiones/día caben unos **350–500 mensajes al día**.
-- **El límite que más se nota son los 8.000 tokens/minuto.** Por eso cada petición se mantiene pequeña: instrucciones y herramientas (~3.000 tokens), conversación recortada a ~12.000 caracteres y respuestas de hasta 1.536 tokens. Si encadenas varias preguntas seguidas (sobre todo con PDF), Groq puede pedir esperar unos segundos: PACO AI espera y reintenta solo, sin gastar usos. Si la espera es larga, te lo dice.
+- Cada mensaje tuyo suele costar **2–3 peticiones** a Groq (consultar + responder; crear y confirmar). Por peticiones (1.000/día) cabrían 350–500 mensajes, pero antes se agotan los tokens diarios (ver abajo).
+- **El límite que más se nota son los 8.000 tokens/minuto.** Groq reserva en ese límite la entrada de cada petición más el tope de salida. Cada paso usa ~3.000 tokens de entrada (instrucciones, herramientas y tus módulos), la conversación se recorta a ~12.000 caracteres y la salida se limita a 1.024 tokens, así que caben ~2 pasos por minuto. Si una petición necesita más pasos o encadenas preguntas (sobre todo con PDF), Groq pide esperar hasta ~30 s: PACO AI espera y reintenta solo, sin gastar usos. Si la espera es mayor, te lo dice.
+- **Tokens al día (200.000):** a ~3.000 tokens por paso y 2 pasos por mensaje de media, caben unos **30–35 mensajes al día**. Es el límite real del plan gratuito con este modelo (antes que los 1.000 usos de PACO AI). Si se queda corto: plan Dev de Groq (de pago) o `PACO_AI_MODEL=openai/gpt-oss-20b`, consulta sus límites en https://console.groq.com/settings/limits.
 - El contador de PACO AI («Hoy: N/1000») cuenta **mensajes tuyos**, no peticiones a Groq. Es un límite de seguridad de PACO OS, distinto de los de Groq.
 
 **Si se te queda corto**, sin tocar la web: `PACO_AI_MODEL` (otro modelo de Groq con tool calling), `PACO_AI_THINKING` (`low`/`medium`/`high`), `PACO_AI_MAX_PROMPT_CHARS` y `PACO_AI_MAX_OUTPUT_TOKENS` (súbelos solo con un plan de pago de Groq).
@@ -109,7 +110,7 @@ Supabase → **Edge Functions → Secrets** (o `supabase secrets set NOMBRE=valo
 | `PACO_AI_MODEL` | No | Modelo de Groq. Por defecto `openai/gpt-oss-120b` |
 | `PACO_AI_THINKING` | No | Esfuerzo de razonamiento: `low` (por defecto, rápido), `medium` o `high` (`minimal` = `low`) |
 | `PACO_AI_MAX_PROMPT_CHARS` | No | Conversación máxima por petición (12000) |
-| `PACO_AI_MAX_OUTPUT_TOKENS` | No | Salida máxima por paso (1536) |
+| `PACO_AI_MAX_OUTPUT_TOKENS` | No | Salida máxima por paso (1024) |
 
 `GEMINI_API_KEY` ya no se usa: puedes borrarlo cuando quieras (no molesta si se queda).
 

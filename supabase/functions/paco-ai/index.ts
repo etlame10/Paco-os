@@ -35,7 +35,7 @@
 //                            defecto 12000: junto con las instrucciones y herramientas cabe en el
 //                            límite de 8000 tokens/minuto del plan gratuito de Groq. Si hace falta,
 //                            se recortan resultados antiguos de herramientas y turnos antiguos.
-//   PACO_AI_MAX_OUTPUT_TOKENS (opcional) tope de salida por paso. Por defecto 1536.
+//   PACO_AI_MAX_OUTPUT_TOKENS (opcional) tope de salida por paso. Por defecto 1024.
 //   (Con un plan de pago de Groq puedes subir ambos valores.)
 // SUPABASE_URL y la clave de servicio los añade Supabase automáticamente.
 //
@@ -45,9 +45,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b'
 const GROQ_URL = 'https://api.groq.com/openai/v1'
-// Tope de salida por paso (incluye el razonamiento). Groq lo cuenta en el límite de
-// tokens por minuto, así que no conviene que sea grande en el plan gratuito.
-const DEFAULT_MAX_OUTPUT_TOKENS = 1536
+// Tope de salida por paso (incluye el razonamiento). Groq RESERVA este tope en el límite de
+// tokens por minuto (petición ≈ entrada + tope): con 1536 cada paso pedía ~4.500 de los 8.000
+// del plan gratuito y el segundo paso de una interacción ya chocaba. Las respuestas reales
+// con razonamiento "low" usan ~100-600 tokens.
+const DEFAULT_MAX_OUTPUT_TOKENS = 1024
 const MAX_MESSAGES = 160
 const MAX_BODY_CHARS = 1_200_000 // admite el texto de varios tramos de documentos
 const DEFAULT_DAILY_LIMIT = 1000
@@ -60,8 +62,9 @@ const OLD_RESULT_CHARS = 600
 // Reintentos ante errores temporales de Groq: esperas crecientes y un tiempo total acotado.
 const RETRY_STATUS = new Set([500, 502, 503, 504])
 const RETRY_DELAYS_MS = [800, 2000]
-// Límite por minuto (429): se espera lo que indique Groq si es poco y queda tiempo.
-const MAX_RATE_WAIT_MS = 20_000
+// Límite por minuto (429): se espera lo que indique Groq si es poco y queda tiempo. La ventana
+// de tokens por minuto de Groq pide esperas de hasta ~30 s: se esperan en vez de dar error.
+const MAX_RATE_WAIT_MS = 35_000
 const MAX_RATE_RETRIES = 2
 const ATTEMPT_TIMEOUT_MS = 45_000
 const TOTAL_BUDGET_MS = 110_000
