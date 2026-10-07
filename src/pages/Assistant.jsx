@@ -338,7 +338,7 @@ export default function Assistant() {
         </form>
       </div>
       <p className="muted small center ai-foot">
-        PACO AI puede equivocarse. Lo que consulta se envía al proveedor de IA (Anthropic) para responderte; la conversación solo se guarda en este dispositivo.
+        PACO AI puede equivocarse. Lo que consulta se envía al proveedor de IA (Google Gemini) para responderte; la conversación solo se guarda en este dispositivo.
       </p>
     </div>
   )

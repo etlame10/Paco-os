@@ -104,9 +104,9 @@ Sin configurar nada, PACO OS arranca en **modo local**: los datos se guardan sol
 Necesitan unos pasos únicos en Supabase (tablas, Edge Function y tarea programada) y la variable `VITE_VAPID_PUBLIC_KEY` en GitHub.
 Guía paso a paso: **[docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md)**. Sin ellos, PACO OS funciona igual y los avisos se ven en la campana.
 
-### 6. PACO AI (opcional, de pago por uso)
+### 6. PACO AI (opcional)
 
-Necesita una clave de la API de Claude guardada como secreto de la Edge Function `paco-ai` (nunca en GitHub ni en la web) y la sección 8 de `supabase/schema.sql`.
+Usa Gemini API (Google), con nivel gratuito. Necesita una clave de Gemini guardada como secreto de la Edge Function `paco-ai` (nunca en GitHub ni en la web) y la sección 8 de `supabase/schema.sql`.
 Guía, costes y seguridad: **[docs/PACO_AI.md](docs/PACO_AI.md)**. Sin configurarlo, PACO OS funciona igual.
 
 ---

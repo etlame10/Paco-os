@@ -82,7 +82,7 @@ export default function AiSettings() {
       ))}
 
       <p className="muted small">
-        Privacidad: para responderte, lo que PACO AI consulta (elementos, fechas, nombres de archivos) se envía a Anthropic, el proveedor del modelo. El
+        Privacidad: para responderte, lo que PACO AI consulta (elementos, fechas, nombres de archivos) se envía a Google (Gemini API), el proveedor del modelo. El
         contenido de tus archivos nunca se envía. La conversación solo se guarda en este dispositivo.
       </p>
       <div className="btn-row">

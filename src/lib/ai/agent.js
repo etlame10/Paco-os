@@ -6,8 +6,9 @@
 //      a que el usuario lo apruebe en pantalla.
 //   3. Los resultados vuelven al modelo y se repite hasta que responde con texto.
 //
-// El historial solo crece (nunca se edita ni se recorta): es lo que exige la API
-// para conservar el razonamiento del modelo entre turnos.
+// El historial solo crece (nunca se edita ni se recorta) y se reenvía íntegro,
+// incluidas las firmas de razonamiento del modelo (`signature`), que el proveedor
+// necesita para continuar correctamente tras usar herramientas.
 import { policyFor } from './permissions.js'
 
 export const MAX_STEPS = 10 // llamadas al modelo por cada mensaje del usuario
@@ -85,7 +86,7 @@ export async function runAgent({ messages, send, toolbox, permissions, approve, 
       push({ role: 'assistant', content: [{ type: 'text', text: 'No puedo ayudarte con esa petición.' }] })
       return { status: 'refusal', messages: msgs }
     }
-    if (!content.some((b) => b.type === 'text' || b.type === 'tool_use')) {
+    if (!content.some((b) => (b.type === 'text' && b.text.trim()) || b.type === 'tool_use')) {
       push({ role: 'assistant', content: [...content, { type: 'text', text: '…' }] })
       return { status: res.stop_reason === 'max_tokens' ? 'max_tokens' : 'done', messages: msgs }
     }

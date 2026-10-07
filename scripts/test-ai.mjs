@@ -114,7 +114,9 @@ const toolbox = (api) => createToolbox({ api, modules: MODULES, getModule })
   const block = src.slice(src.indexOf('PACO_AI TOOLS START'), src.indexOf('PACO_AI TOOLS END'))
   const names = [...block.matchAll(/name: '([a-z_]+)'/g)].map((m) => m[1]).sort()
   ok(JSON.stringify(names) === JSON.stringify(Object.keys(TOOL_KINDS).sort()), 'las herramientas de la Edge Function coinciden con las del navegador', names)
-  ok(!/sk-ant-[\w-]{8}|sb_secret_\w{8}|eyJhbGci/.test(src), 'la Edge Function no contiene claves')
+  ok(!/AIza[\w-]{20}|sk-ant-[\w-]{8}|sb_secret_\w{8}|eyJhbGci/.test(src), 'la Edge Function no contiene claves')
+  ok(/x-goog-api-key/.test(src) && !/[?&]key=/.test(src), 'la clave de Gemini va en cabecera, nunca en la URL')
+  ok(!/anthropic|claude/i.test(src), 'la Edge Function no usa Anthropic/Claude')
 }
 
 // ---------- Herramientas: validación ----------
@@ -231,7 +233,7 @@ const user = (t) => ({ role: 'user', content: [text(t)] })
 {
   const api = fakeApi(SEED)
   const model = scriptedModel([
-    { stop_reason: 'tool_use', content: [{ type: 'thinking', thinking: '', signature: 'sig1' }, text('Miro tus tareas.'), toolUse('u1', 'search_items', { module: 'tareas' }), toolUse('u2', 'create_item', { module: 'tareas', fields: { title: 'Llamar a Ana', due_date: '2026-10-08' } })] },
+    { stop_reason: 'tool_use', content: [{ ...text('Miro tus tareas.'), signature: 'sig0' }, { ...toolUse('u1', 'search_items', { module: 'tareas' }), signature: 'sig1' }, toolUse('u2', 'create_item', { module: 'tareas', fields: { title: 'Llamar a Ana', due_date: '2026-10-08' } })] },
     { stop_reason: 'end_turn', content: [text('Hecho: he creado la tarea.')] },
   ])
   const asked = []
@@ -255,7 +257,7 @@ const user = (t) => ({ role: 'user', content: [text(t)] })
   ok(results.length === 2 && results[0].tool_use_id === 'u1' && results[1].tool_use_id === 'u2', 'todos los resultados van en un único mensaje y en orden')
   ok(api.items_.some((i) => i.title === 'Llamar a Ana'), 'la tarea aprobada se crea')
   ok(actions.u2.status === 'done' && actions.u1.status === 'done', 'estado de cada acción registrado')
-  ok(model.seen[1][1].content[0].signature === 'sig1', 'el razonamiento del modelo se devuelve intacto')
+  ok(model.seen[1][1].content[0].signature === 'sig0' && model.seen[1][1].content[1].signature === 'sig1', 'las firmas de razonamiento del modelo se devuelven intactas')
   const prefixOk = snapshots.every((s, k) => k === 0 || JSON.stringify(s.slice(0, snapshots[k - 1].length)) === JSON.stringify(snapshots[k - 1]))
   ok(prefixOk, 'el historial solo crece (nunca se edita)')
 }
