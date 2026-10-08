@@ -7,6 +7,7 @@ const pctFmt = (x, d = 2) => (x === null || x === undefined ? "n/d" : `${x > 0 ?
 const money = (x) => (x === null || x === undefined ? "n/d" : `${nf(2).format(x)}`);
 const num2 = (x) => (x === null || x === undefined ? "n/d" : nf(2).format(x));
 let btOptions = null;
+let lastRequest = null;
 
 // ------------------------------------------------------------- pestañas
 
@@ -18,7 +19,7 @@ function showView(view) {
   }
   $("view-analysis").hidden = view !== "analysis";
   $("view-backtest").hidden = view !== "backtest";
-  if (view === "backtest" && !btOptions) loadBacktestOptions();
+  if (view === "backtest" && !btOptions) { loadBacktestOptions(); loadRegistry(); }
 }
 document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
 
@@ -67,6 +68,16 @@ $("bt-form").addEventListener("submit", async (ev) => {
   if ($("bt-start").value) q.set("start", $("bt-start").value);
   if ($("bt-end").value) q.set("end", $("bt-end").value);
   document.querySelectorAll("#bt-params input").forEach((i) => q.set(i.dataset.param, i.value));
+  lastRequest = {
+    ticker: q.get("ticker"),
+    strategy: q.get("strategy"),
+    params: Object.fromEntries([...document.querySelectorAll("#bt-params input")].map((i) => [i.dataset.param, Number(i.value)])),
+    capital: Number(q.get("capital")),
+    commission_percent: Number(q.get("commission_percent")),
+    slippage_percent: Number(q.get("slippage_percent")),
+    start: q.get("start") || null,
+    end: q.get("end") || null,
+  };
 
   const btn = $("bt-run");
   btn.disabled = true;
@@ -98,7 +109,10 @@ function renderBacktest(r) {
   renderComparison(r);
   renderBtChart(r);
   renderTrades(r);
+  renderQuality(r.data_quality);
   renderTransparency(r);
+  $("bt-save-status").textContent = "";
+  $("bt-save").disabled = false;
   $("bt-results").hidden = false;
 }
 
@@ -332,4 +346,71 @@ function renderBtChart(r) {
           el("td", { text: p.position_qty > 0 ? "comprado" : "liquidez" }),
           el("td", { class: "num", text: money(p.equity) }), el("td", { class: "num", text: money(bh[i].equity) })))))));
   $("bt-chart").replaceChildren(wrap, legend, table);
+}
+
+// ------------------------------------------------------------- calidad de datos
+
+function renderQuality(q) {
+  const icon = { ok: "✓", aviso: "!", bloqueo: "✕" };
+  $("bt-quality").replaceChildren(
+    el("p", { class: `quality-status q-${q.status.replace(" ", "-")}`, text: `Control de integridad: ${q.status.toUpperCase()}` }),
+    el("p", { class: "interp-detail", text: `${q.n_bars} sesiones · ${q.first_date} → ${q.last_date}. ARGOS no corrige datos: solo informa.` }),
+    el("table", { class: "kv quality" }, el("tbody", {}, q.checks.map((c) =>
+      el("tr", { class: `q-row q-${c.status}` },
+        el("td", {}, el("span", { class: `q-icon q-${c.status}`, text: icon[c.status] || "?", "aria-label": c.status }), " ", c.label),
+        el("td", {}, c.detail, c.examples.length ? el("span", { class: "method", text: `Ejemplos: ${c.examples.join("; ")}` }) : null))))),
+  );
+}
+
+// ------------------------------------------------------------- registro de experimentos
+
+$("bt-save").addEventListener("click", async () => {
+  if (!lastRequest) return;
+  const btn = $("bt-save");
+  btn.disabled = true;
+  $("bt-save-status").textContent = "Guardando…";
+  try {
+    const res = await fetch("/api/experiments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(lastRequest) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(typeof body.detail === "string" ? body.detail : `Error ${res.status}`);
+    $("bt-save-status").textContent = `Guardado como ${body.record.record_id}${body.record.dry_run ? " (datos simulados: marcado como ensayo)" : ""}.`;
+    loadRegistry();
+  } catch (err) {
+    btn.disabled = false;
+    $("bt-save-status").textContent = `No se pudo guardar: ${err.message}`;
+  }
+});
+
+async function loadRegistry() {
+  let data;
+  try {
+    data = await (await fetch("/api/experiments?limit=50")).json();
+  } catch {
+    $("bt-registry").replaceChildren(el("p", { class: "status-note", text: "No se pudo leer el registro." }));
+    return;
+  }
+  if (!data.records.length) {
+    $("bt-registry").replaceChildren(el("p", { class: "status-note", text: "Todavía no hay experimentos registrados. Ejecuta un backtest y pulsa «Guardar en el registro»; los experimentos pre-registrados (python -m argos.experiments.runner) se guardan solos." }));
+    return;
+  }
+  const rows = data.records.map((r) => el("tr", {},
+    el("td", { class: "num muted", text: r.recorded_at.slice(0, 16).replace("T", " ") }),
+    el("td", { text: r.experiment_id ? `${r.experiment_id} · ${r.period_name}` : "suelto" }),
+    el("td", {}, r.ticker, r.dry_run ? el("span", { class: "demo-tag inline", text: "ENSAYO" }) : null),
+    el("td", { class: "num", text: `${r.period_start} → ${r.period_end}` }),
+    el("td", { text: `${r.strategy} ${Object.entries(r.params).map(([k, v]) => `${k}=${v}`).join(" ")}` }),
+    el("td", { class: "num", text: `${pctFmt(r.commission_pct, 3).replace("+", "")} / ${pctFmt(r.slippage_pct, 3).replace("+", "")}` }),
+    el("td", { class: "num", text: pctFmt(r.strategy_metrics.total_return) }),
+    el("td", { class: "num", text: pctFmt(r.benchmark_metrics.total_return) }),
+    el("td", { class: `num ${r.return_difference >= 0 ? "pos" : "neg"}`, text: pctFmt(r.return_difference) }),
+    el("td", { class: "num", text: `${num2(r.strategy_metrics.sharpe)} / ${num2(r.benchmark_metrics.sharpe)}` }),
+    el("td", { class: "num", text: String(r.strategy_metrics.n_trades) }),
+    el("td", { class: "num muted", text: `v${r.argos_version}${r.git_commit ? " · " + r.git_commit : ""}` }),
+  ));
+  $("bt-registry").replaceChildren(
+    el("p", { class: "interp-detail", text: `${data.count} registro(s). Las filas ENSAYO usan datos simulados y nunca cuentan como resultado.` }),
+    el("div", { class: "table-scroll tall" }, el("table", { class: "factors" },
+      el("thead", {}, el("tr", {}, ["Fecha", "Experimento", "Activo", "Periodo", "Estrategia", "Comisión / slip.", "Estrategia", "B&H", "Diferencia (pp)", "Sharpe E / B&H", "Ops", "Versión"].map((h) => el("th", { text: h })))),
+      el("tbody", {}, rows))),
+  );
 }

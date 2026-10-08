@@ -6,6 +6,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from argos.data.quality import DataQualityReport
 from argos.strategy.base import Signal
 
 EXECUTION_RULE = (
@@ -164,5 +165,6 @@ class BacktestReport(BaseModel):
     benchmark: BacktestLeg
     comparison: Comparison
     lookahead_audit: LookAheadAudit
+    data_quality: DataQualityReport
     notes: list[str]
     live_trading_enabled: bool = False

@@ -239,3 +239,20 @@ details.data-table summary { cursor: pointer; color: var(--muted); }
   .tabs { order: 3; width: 100%; }
   .tab { flex: 1; }
 }
+
+/* ---------- calidad de datos y registro ---------- */
+.quality-status { font-weight: 700; margin: 0 0 4px; }
+.q-superado { color: var(--bull); }
+.q-con-avisos { color: var(--warn); }
+.q-bloqueado { color: var(--bear); }
+.q-icon { display: inline-flex; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #0b0f17; }
+.q-icon.q-ok { background: var(--bull); }
+.q-icon.q-aviso { background: var(--warn); }
+.q-icon.q-bloqueo { background: var(--bear); }
+table.quality td:first-child { white-space: nowrap; font-family: inherit; text-align: left; }
+table.quality td:last-child { text-align: left; white-space: normal; font-family: inherit; }
+.save-row { display: flex; align-items: center; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+.btn-secondary { background: var(--bg-2); color: var(--accent); border: 1px solid var(--accent-2); border-radius: 8px; padding: 9px 14px; font-weight: 600; cursor: pointer; }
+.btn-secondary:disabled { opacity: 0.5; cursor: default; }
+.registry-panel { margin-top: 16px; }
+.demo-tag.inline { margin-left: 6px; font-size: 9px; }

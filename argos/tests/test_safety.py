@@ -53,7 +53,12 @@ def test_frontend_only_talks_to_own_api(root):
         assert urls <= {"http://www.w3.org/2000/svg"}, (path.name, urls)  # solo el namespace SVG
         fetches = re.findall(r"fetch\(\s*[`\"']([^`\"']+)", js)
         assert all(u.startswith("/api/") for u in fetches), (path.name, fetches)
-        assert "method:" not in js and "POST" not in js, path.name  # el frontend solo hace GET
+        # El único POST permitido es guardar en el registro local de experimentos.
+        posts = re.findall(r"fetch\(\s*[`\"']([^`\"']+)[`\"']\s*,\s*\{[^}]*method:\s*\"POST\"", js)
+        assert set(posts) <= {"/api/experiments"}, (path.name, posts)
+        assert js.count('method: "POST"') == len(posts), path.name
+        for verb in ("PUT", "DELETE", "PATCH"):
+            assert f'method: "{verb}"' not in js, path.name
 
 
 def test_backtest_ui_labels_history_not_prediction(root):

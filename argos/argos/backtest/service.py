@@ -23,6 +23,7 @@ from argos.backtest.models import (
 from argos.core.safety import LIVE_TRADING_ENABLED
 from argos.data.base import DataProviderError
 from argos.data.normalize import normalize_history, normalize_ticker
+from argos.data.quality import QualityRequirements, assess_quality
 from argos.data.registry import ProviderRegistry, default_registry
 from argos.strategy import examples as _examples  # noqa: F401  (registra estrategias)
 from argos.strategy.base import Strategy, get_strategy
@@ -45,11 +46,24 @@ class BacktestService:
         strategy = get_strategy(strategy_name, **(params or {}))
         return self.run_strategy(raw_ticker, strategy, config)
 
-    def run_strategy(self, raw_ticker: str, strategy: Strategy, config: BacktestConfig) -> BacktestReport:
-        # 1) DATOS
+    def load(self, raw_ticker: str, requirements: QualityRequirements | None = None):
+        """Carga un histórico, evalúa su calidad en bruto y lo normaliza."""
         ticker = normalize_ticker(raw_ticker)
         provider = self.registry.resolve(ticker)
-        history = normalize_history(provider.get_price_history(ticker))
+        raw = provider.get_price_history(ticker)
+        quality = assess_quality(raw, requirements)
+        return ticker, normalize_history(raw), quality
+
+    def run_strategy(
+        self,
+        raw_ticker: str,
+        strategy: Strategy,
+        config: BacktestConfig,
+        *,
+        preloaded: tuple | None = None,
+    ) -> BacktestReport:
+        # 1) DATOS (+ control de integridad)
+        ticker, history, quality = preloaded or self.load(raw_ticker)
         df_all = history.to_dataframe()
         if df_all.empty:
             raise InsufficientDataError(f"{ticker}: no hay datos válidos.")
@@ -93,7 +107,14 @@ class BacktestService:
         metrics, bh_metrics = compute_metrics(sim), compute_metrics(bh_sim)
         simulated = history.provenance.is_simulated
 
-        notes = list(history.normalization_notes)
+        notes = []
+        if quality.status != "superado":
+            flagged = [c for c in quality.checks if c.status != "ok"]
+            notes.append(
+                f"Control de calidad de datos: {quality.summary()}. "
+                + " ".join(f"[{c.status.upper()}] {c.label}: {c.detail}" for c in flagged)
+            )
+        notes += history.normalization_notes
         warm_idx = strategy.min_bars - 1
         if warm_idx < len(df_hist) and df_hist.index[warm_idx].date() > period_start:
             notes.append(
@@ -147,6 +168,7 @@ class BacktestService:
             benchmark=BacktestLeg(label=bh.label, signals=bh_signals, simulation=bh_sim, metrics=bh_metrics),
             comparison=compare(metrics, bh_metrics, simulated_data=simulated),
             lookahead_audit=audit,
+            data_quality=quality,
             notes=notes,
             live_trading_enabled=LIVE_TRADING_ENABLED,
         )

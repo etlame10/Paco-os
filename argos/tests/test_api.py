@@ -3,13 +3,22 @@ from fastapi.testclient import TestClient
 
 from argos.api.app import create_app
 from argos.data.providers.demo import DemoProvider
+from argos.experiments.registry import ExperimentRegistry
 from argos.data.registry import ProviderRegistry
 from argos.pipeline import AnalysisService
 
 
 @pytest.fixture(scope="module")
-def client():
-    return TestClient(create_app(AnalysisService(registry=ProviderRegistry([DemoProvider()]))))
+def registry_path(tmp_path_factory):
+    return tmp_path_factory.mktemp("reg") / "registry.jsonl"
+
+
+@pytest.fixture(scope="module")
+def client(registry_path):
+    return TestClient(create_app(
+        AnalysisService(registry=ProviderRegistry([DemoProvider()])),
+        experiments=ExperimentRegistry(registry_path),
+    ))
 
 
 def test_health_reports_no_trading(client):
@@ -52,11 +61,17 @@ def test_providers_lists_demo_as_simulated(client):
     assert providers == [{"name": "demo", "is_simulated": True, "tickers": DemoProvider().list_tickers()}]
 
 
+#: Única ruta que escribe algo: una línea en el registro LOCAL de experimentos.
+WRITE_ROUTES = {"/api/experiments": {"GET", "POST"}}
+
+
 def test_api_is_read_only(client):
-    """No hay ninguna ruta que acepte POST/PUT/PATCH/DELETE ni que hable de órdenes."""
+    """Ninguna ruta acepta PUT/PATCH/DELETE; solo el registro de experimentos acepta POST.
+    Ninguna ruta habla de órdenes, operaciones ni brokers."""
     for route in client.app.routes:
         methods = getattr(route, "methods", None) or set()
-        assert methods <= {"GET", "HEAD"}, f"{route.path} acepta {methods}"
+        allowed = WRITE_ROUTES.get(route.path, {"GET", "HEAD"}) | {"HEAD"}
+        assert methods <= allowed, f"{route.path} acepta {methods}"
         for word in ("order", "orden", "trade", "buy", "sell", "broker", "execute"):
             assert word not in route.path.lower(), route.path
     for method in ("post", "put", "delete", "patch"):
@@ -107,3 +122,35 @@ def test_backtest_endpoint_errors(client, params, status):
     r = client.get("/api/backtest", params=params)
     assert r.status_code == status, r.text
     assert r.json()["detail"]
+
+
+# ----------------------------------------------------------------- registro de experimentos
+
+
+def test_save_and_list_experiment(client, registry_path):
+    before = client.get("/api/experiments").json()["count"]
+    r = client.post("/api/experiments", json={"ticker": "DEMO-LATERAL", "params": {"fast": 20, "slow": 50},
+                                              "capital": 5000, "commission_percent": 0.2})
+    assert r.status_code == 201, r.text
+    rec = r.json()["record"]
+    assert rec["ticker"] == "DEMO-LATERAL" and rec["params"] == {"fast": 20, "slow": 50}
+    assert rec["initial_capital"] == 5000 and rec["commission_pct"] == pytest.approx(0.002)
+    assert rec["dry_run"] is True and rec["is_simulated_data"] is True  # datos demo: nunca cuenta como resultado
+    assert rec["argos_version"] and rec["recorded_at"] and rec["strategy_metrics"]["n_trades"] >= 0
+    listing = client.get("/api/experiments").json()
+    assert listing["count"] == before + 1 and listing["records"][0]["record_id"] == rec["record_id"]
+    assert registry_path.read_text().count("\n") == before + 1
+
+
+def test_save_experiment_ignores_client_metrics(client):
+    """Las métricas siempre las calcula el servidor; los campos extra se ignoran."""
+    r = client.post("/api/experiments", json={"ticker": "DEMO-LATERAL", "strategy_metrics": {"total_return": 99}})
+    assert r.status_code == 201
+    assert r.json()["record"]["strategy_metrics"]["total_return"] != 99
+
+
+def test_save_experiment_validation(client):
+    assert client.post("/api/experiments", json={"ticker": "AAPL"}).status_code == 404
+    assert client.post("/api/experiments", json={"ticker": "DEMO-LATERAL", "capital": -1}).status_code == 422
+    assert client.put("/api/experiments", json={}).status_code == 405
+    assert client.delete("/api/experiments").status_code == 405

@@ -39,6 +39,15 @@ Pestaña **Backtest** de la interfaz (o `GET /api/backtest?ticker=DEMO-LATERAL&s
 
 > Un backtest es un resultado histórico, no una predicción.
 
+## Experimentos con datos reales
+
+ARGOS trabaja con experimentos **pre-registrados**: hipótesis, reglas, activos, periodos y criterios se fijan antes de ver los datos (`protocols/`). Filosofía y registro: **[docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md)**. Qué datos aportar y cómo comprobarlos: **[docs/DATOS_REALES.md](docs/DATOS_REALES.md)**.
+
+```bash
+python -m argos.data.check --protocolo EXP-001   # control de integridad de tus CSV
+python -m argos.experiments.runner EXP-001       # experimento tal cual está registrado
+```
+
 ## Arquitectura
 
 Ver **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: capas, cómo añadir proveedores, estrategias, backtesting y la futura integración con TradingView.
@@ -49,4 +58,5 @@ Ver **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: capas, cómo añadir prove
 - ✅ Análisis técnico, motor de riesgo, conclusión auditable y explicación en lenguaje natural.
 - ✅ Backtesting: motor independiente de la estrategia, comisión y slippage, comparación con Buy & Hold, auditoría anti look-ahead automática, interfaz con resumen, comparación, operaciones, gráfico y transparencia.
 - ✅ Estrategia de prueba: cruce de medias 50/200 (sin optimizar).
+- ✅ Control de integridad de datos, registro local de experimentos y ejecutor de experimentos pre-registrados (EXP-001, pendiente de datos reales).
 - ⏳ Análisis fundamental, noticias, paper trading, TradingView.

@@ -5,13 +5,13 @@ Arranque:  uvicorn argos.api.app:app --reload   (desde la carpeta argos/)
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from datetime import date
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from argos import __version__
 from argos.core.models import AnalysisReport
@@ -19,6 +19,7 @@ from argos.core.safety import DISCLAIMER, LIVE_TRADING_ENABLED
 from argos.backtest.models import BacktestConfig, BacktestReport
 from argos.backtest.service import BacktestService
 from argos.data.base import DataProviderError, TickerNotFoundError
+from argos.experiments.registry import ExperimentRegistry
 from argos.pipeline import AnalysisService
 from argos.strategy import examples as _examples  # noqa: F401  (registra estrategias)
 from argos.strategy.base import available_strategies, strategy_catalog
@@ -26,9 +27,28 @@ from argos.strategy.base import available_strategies, strategy_catalog
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
 
-def create_app(service: AnalysisService | None = None, backtests: BacktestService | None = None) -> FastAPI:
+class SaveBacktestRequest(BaseModel):
+    """Parámetros de un backtest a registrar. El servidor lo vuelve a ejecutar:
+    nunca se guardan métricas enviadas por el navegador."""
+
+    ticker: str = Field(max_length=20)
+    strategy: str = Field("sma_crossover", max_length=40)
+    params: dict[str, int] = Field(default_factory=dict)
+    capital: float = Field(10_000, gt=0, le=1e12)
+    commission_percent: float = Field(0.1, ge=0, le=5)
+    slippage_percent: float = Field(0.05, ge=0, le=5)
+    start: date | None = None
+    end: date | None = None
+
+
+def create_app(
+    service: AnalysisService | None = None,
+    backtests: BacktestService | None = None,
+    experiments: ExperimentRegistry | None = None,
+) -> FastAPI:
     service = service or AnalysisService()
     backtests = backtests or BacktestService(registry=service.registry)
+    experiments = experiments or ExperimentRegistry()
     app = FastAPI(title="ARGOS", version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
     @app.middleware("http")
@@ -91,21 +111,26 @@ def create_app(service: AnalysisService | None = None, backtests: BacktestServic
     ):
         reserved = {"ticker", "strategy", "capital", "commission_percent", "slippage_percent", "start", "end"}
         params = {k: v for k, v in request.query_params.items() if k not in reserved}
-        try:
-            config = BacktestConfig(
-                initial_capital=capital,
-                commission_pct=commission_percent / 100,
-                slippage_pct=slippage_percent / 100,
-                start=start,
-                end=end,
-            )
-            return backtests.run(ticker, strategy, params, config)
-        except TickerNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-        except DataProviderError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
-        except ValueError as exc:  # parámetros, fechas, look-ahead, validación
-            raise HTTPException(status_code=400, detail=_clean(exc))
+        return _run_backtest(backtests, ticker, strategy, params, capital, commission_percent,
+                             slippage_percent, start, end)
+
+    @app.get("/api/experiments")
+    def list_experiments(limit: int = Query(100, ge=1, le=1000)) -> dict:
+        records = experiments.list()
+        return {
+            "registry": "registro local (JSON por línea)",
+            "count": len(records),
+            "records": [r.model_dump() for r in reversed(records[-limit:])],
+        }
+
+    @app.post("/api/experiments", status_code=201)
+    def save_experiment(req: SaveBacktestRequest) -> dict:
+        """Única ruta de escritura de ARGOS: añade una línea al registro local de experimentos.
+        No ejecuta ninguna operación de mercado."""
+        report = _run_backtest(backtests, req.ticker, req.strategy, req.params, req.capital,
+                               req.commission_percent, req.slippage_percent, req.start, req.end)
+        rec = experiments.record(report)
+        return {"saved": True, "record": rec.model_dump()}
 
     @app.get("/api/analyze/{ticker}", response_model=AnalysisReport)
     def analyze(ticker: str):
@@ -125,6 +150,24 @@ def create_app(service: AnalysisService | None = None, backtests: BacktestServic
     if WEB_DIR.is_dir():
         app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
     return app
+
+
+def _run_backtest(backtests, ticker, strategy, params, capital, commission_percent, slippage_percent, start, end):
+    try:
+        config = BacktestConfig(
+            initial_capital=capital,
+            commission_pct=commission_percent / 100,
+            slippage_pct=slippage_percent / 100,
+            start=start,
+            end=end,
+        )
+        return backtests.run(ticker, strategy, params, config)
+    except TickerNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except DataProviderError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except ValueError as exc:  # parámetros, fechas, look-ahead, validación
+        raise HTTPException(status_code=400, detail=_clean(exc))
 
 
 def _clean(exc: Exception) -> str:
