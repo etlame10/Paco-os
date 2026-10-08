@@ -1,0 +1,54 @@
+{
+  "id": "EXP-001",
+  "title": "Cruce de medias 50/200 frente a Buy & Hold en datos históricos reales",
+  "registered_at": "2026-10-08",
+  "status_note": "Protocolo fijado ANTES de disponer de datos reales y de ver ningún resultado. No se modifica tras ver resultados: cualquier cambio exige un experimento nuevo (EXP-002...).",
+  "hypothesis": {
+    "h1": "La regla de cruce de medias 50/200 (solo largos) obtiene una relación rentabilidad/riesgo (Sharpe) superior a Buy & Hold en el periodo fuera de muestra.",
+    "h0": "La regla no mejora a Buy & Hold: las diferencias observadas son compatibles con el azar o favorecen a Buy & Hold.",
+    "secondary": "La regla reduce la caída máxima frente a Buy & Hold, a costa de menor rentabilidad en mercados alcistas."
+  },
+  "strategy": {"name": "sma_crossover", "params": {"fast": 50, "slow": 200}},
+  "costs": {"initial_capital": 10000, "commission_pct": 0.001, "slippage_pct": 0.0005},
+  "assets": [
+    {"ticker": "SPY", "role": "indice_amplio", "description": "ETF del S&P 500: el mercado estadounidense en conjunto", "core": true},
+    {"ticker": "KO", "role": "grande_estable", "description": "Coca-Cola: empresa grande, defensiva y de baja volatilidad", "core": true},
+    {"ticker": "AAPL", "role": "tecnologica", "description": "Apple: tecnológica de gran capitalización (ojo: sesgo de supervivencia, se eligió sabiendo que le fue bien)", "core": true},
+    {"ticker": "XOM", "role": "comportamiento_distinto", "description": "ExxonMobil: cíclica ligada al petróleo, con una larga fase bajista 2014-2020", "core": true},
+    {"ticker": "GLD", "role": "complementario", "description": "ETF de oro: activo no accionarial", "core": false},
+    {"ticker": "EFA", "role": "complementario", "description": "ETF de acciones desarrolladas fuera de EE. UU.", "core": false}
+  ],
+  "data_requirements": {
+    "frequency": "diaria",
+    "required_start": "2007-01-01",
+    "required_end": "2025-12-31",
+    "max_start_tolerance_days": 10,
+    "price_adjustment": "OHLC ajustados por splits (y preferiblemente dividendos)",
+    "min_years": 10
+  },
+  "periods": [
+    {"name": "desarrollo", "start": "2008-01-01", "end": "2016-12-31",
+     "note": "Incluye la crisis de 2008 y el mercado alcista posterior. Datos de 2007 solo para calentar las medias."},
+    {"name": "fuera_de_muestra", "start": "2017-01-01", "end": "2025-12-31",
+     "note": "Incluye 2018, la caída de 2020 y el mercado bajista de 2022. La regla no se modifica tras ver el periodo de desarrollo."}
+  ],
+  "reserved_holdout": {"start": "2026-01-01", "note": "2026 en adelante NO se mira en este experimento: se reserva para una validación futura."},
+  "regime_classification": {
+    "unit": "año natural completo",
+    "rule": "Según la rentabilidad de Buy & Hold en ese año: > +10% alcista; < -10% bajista; entre ambos lateral.",
+    "bull_threshold": 0.10,
+    "bear_threshold": -0.10
+  },
+  "success_criteria": {
+    "primary": "En el periodo FUERA DE MUESTRA, el Sharpe de la estrategia supera al de Buy & Hold en al menos 3 de los 4 activos principales.",
+    "secondary": "En el periodo FUERA DE MUESTRA, la caída máxima de la estrategia es menor que la de Buy & Hold en al menos 3 de los 4 activos principales.",
+    "min_core_assets_with_valid_data": 3,
+    "interpretation": "Cumplir los criterios solo indicaría evidencia preliminar en esta muestra, nunca que la estrategia 'funcione'. No cumplirlos indica que en esta muestra no hay evidencia de que aporte valor frente a Buy & Hold.",
+    "minimum_trades_caveat": 30
+  },
+  "forbidden": [
+    "Cambiar parámetros, costes, activos, periodos o criterios después de ver resultados.",
+    "Elegir el periodo o el activo que mejor resultado dé.",
+    "Presentar el resultado como recomendación de inversión."
+  ]
+}
