@@ -59,6 +59,20 @@ python -m argos.tools.tiingo convertir     # 2. CSV de ARGOS + control de integr
 
 `descargar` termina con código 0 si los cuatro activos se descargaron y validaron. Ante un error de autenticación se detiene sin seguir con el resto. `convertir` termina con código 0 solo si los cuatro CSV superan el control de integridad del protocolo.
 
+### Si aparece `CERTIFICATE_VERIFY_FAILED` (por ejemplo, «certificate has expired»)
+
+ARGOS verifica siempre el certificado de Tiingo y **nunca** se conecta sin verificar. Usa las autoridades de confianza del paquete `certifi` (lista de Mozilla, versión fijada en `requirements.txt`) en lugar del almacén de Windows, que Python no actualiza automáticamente.
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements.txt     # instala/actualiza certifi
+.venv\Scripts\python.exe -m argos.tools.tiingo diagnosticar-tls  # solo prueba la conexión: sin clave, sin datos
+```
+
+El diagnóstico muestra la hora de tu PC, compara la confianza de `certifi` con la de Windows y da una conclusión:
+- **Falla con ambas** → revisa primero la fecha y hora (Configuración → Hora e idioma → Sincronizar ahora).
+- **Solo funciona con Windows** → probablemente un antivirus o proxy inspecciona HTTPS con su propio certificado; revisa la opción de «análisis HTTPS» o «escaneo de conexiones cifradas».
+- **Funciona con `certifi`** → ya puedes ejecutar `descargar`.
+
 > El entorno en la nube donde se desarrolló ARGOS no tiene acceso de red a Tiingo, y de todos modos es mejor que tu clave no salga de tu ordenador: ejecuta la descarga en tu PC.
 
 ## 2. Formato exacto

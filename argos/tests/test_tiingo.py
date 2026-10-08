@@ -352,3 +352,167 @@ def test_no_key_in_source_code_or_frontend(root):
                 text = f.read_text(encoding="utf-8", errors="ignore")
                 assert "Token " not in text or f.name == "tiingo.py", f
                 assert "TIINGO_API_KEY=" not in text, f
+
+
+# ----------------------------------------------------------------- TLS: siempre verificado
+
+
+import re as _re
+import shutil as _shutil
+import ssl
+import threading
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+INSECURE_PATTERNS = ["CERT_NONE", "check_hostname = False", "check_hostname=False", "_create_unverified_context",
+                     "verify=False", "PYTHONHTTPSVERIFY", "OP_NO_TLSv1_2"]
+
+
+def test_tls_context_always_verifies():
+    ctx = tiingo.tls_context()
+    assert ctx.verify_mode == ssl.CERT_REQUIRED
+    assert ctx.check_hostname is True
+    assert ctx.minimum_version >= ssl.TLSVersion.TLSv1_2
+    assert ctx.cert_store_stats()["x509_ca"] > 100  # raíces de certifi cargadas
+
+
+def test_fetch_uses_the_verified_context(monkeypatch):
+    seen = {}
+
+    class Resp:
+        status, headers = 200, {}
+        def read(self): return b"date\n"
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_urlopen(req, timeout=None, context=None):
+        seen["ctx"], seen["url"] = context, req.full_url
+        return Resp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    tiingo.urllib_fetch("https://api.tiingo.com/x", {"Authorization": f"Token {KEY}"})
+    assert isinstance(seen["ctx"], ssl.SSLContext)
+    assert seen["ctx"].verify_mode == ssl.CERT_REQUIRED and seen["ctx"].check_hostname
+
+
+@pytest.mark.parametrize("reason", [
+    ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired"),
+    ssl.SSLError(1, "handshake failure"),
+], ids=["caducado", "handshake"])
+def test_tls_errors_are_reported_clearly_without_key(monkeypatch, tmp_path, reason):
+    def boom(req, timeout=None, context=None):
+        raise urllib.error.URLError(reason)
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(tiingo.TiingoTLSError) as exc:
+        tiingo.download_ticker("SPY", START, END, key=KEY, raw_dir=tmp_path / "raw", now=FIXED_NOW)
+    msg = str(exc.value)
+    assert "no se conecta sin verificar" in msg and "diagnosticar-tls" in msg and "reloj" in msg
+    assert KEY not in msg
+    assert nothing_saved(tmp_path)
+
+
+def test_cli_stops_on_first_tls_error(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("TIINGO_API_KEY", KEY)
+    calls = []
+
+    def tls_fail(t, s, e, **k):
+        calls.append(t)
+        raise tiingo.TiingoTLSError("certificado no verificable")
+
+    monkeypatch.setattr(tiingo, "download_ticker", tls_fail)
+    assert cli.main(["descargar"]) == 2
+    assert calls == ["SPY"]
+    assert "Se detiene la descarga" in capsys.readouterr().out
+
+
+@pytest.fixture
+def untrusted_https_server(tmp_path):
+    """Servidor HTTPS en localhost con un certificado autofirmado (no confiable)."""
+    if not _shutil.which("openssl"):
+        pytest.skip("openssl no disponible para generar el certificado de prueba")
+    cert, keyf = tmp_path / "c.pem", tmp_path / "k.pem"
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(keyf), "-out", str(cert),
+                    "-days", "2", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"],
+                   check=True, capture_output=True)
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(GOOD.encode())
+
+        def log_message(self, *a):
+            pass
+
+    server = HTTPServer(("localhost", 0), Handler)
+    sctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    sctx.load_cert_chain(cert, keyf)
+    server.socket = sctx.wrap_socket(server.socket, server_side=True)
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    yield f"https://localhost:{server.server_address[1]}/tiingo/daily/spy/prices"
+    server.shutdown()
+
+
+def test_real_connection_rejects_untrusted_certificate(untrusted_https_server):
+    """Prueba de extremo a extremo: con un certificado no confiable, la conexión se RECHAZA."""
+    with pytest.raises(tiingo.TiingoTLSError, match="no se conecta sin verificar"):
+        tiingo.urllib_fetch(untrusted_https_server, {"Authorization": f"Token {KEY}"}, timeout=10)
+
+
+def test_diagnose_tls_never_disables_verification():
+    contexts = []
+
+    def ok_handshake(host, port, timeout, ctx):
+        contexts.append(ctx)
+        return {"subject": ((("commonName", "api.tiingo.com"),),), "issuer": ((("organizationName", "CA Ejemplo"),),),
+                "notAfter": "Jan  1 00:00:00 2027 GMT"}
+
+    ok, lines = tiingo.diagnose_tls(handshake=ok_handshake)
+    assert ok and any("[OK]" in l for l in lines) and "puede conectar" in lines[-1]
+    assert len(contexts) == 2 and all(c.verify_mode == ssl.CERT_REQUIRED and c.check_hostname for c in contexts)
+    assert any("Fecha y hora de este PC" in l for l in lines) and any("certifi" in l for l in lines)
+
+
+def test_diagnose_tls_conclusions():
+    expired = ssl.SSLCertVerificationError(1, "certificate verify failed")
+    expired.verify_message, expired.verify_code = "certificate has expired", 10
+
+    def always_fail(host, port, timeout, ctx):
+        raise expired
+
+    ok, lines = tiingo.diagnose_tls(handshake=always_fail)
+    assert not ok and "certificate has expired" in " ".join(lines) and "fecha y hora" in lines[-1]
+
+    calls = []
+
+    def only_system(host, port, timeout, ctx):  # 1.ª llamada = certifi (falla), 2.ª = sistema (funciona)
+        calls.append(ctx)
+        if len(calls) == 1:
+            raise expired
+        return {"subject": (), "issuer": ()}
+
+    ok, lines = tiingo.diagnose_tls(handshake=only_system)
+    assert not ok and "antivirus o proxy" in lines[-1]
+
+
+def test_cli_diagnose_exit_codes(monkeypatch, capsys):
+    monkeypatch.setattr(tiingo, "diagnose_tls", lambda: (True, ["todo bien"]))
+    assert cli.main(["diagnosticar-tls"]) == 0
+    monkeypatch.setattr(tiingo, "diagnose_tls", lambda: (False, ["falla"]))
+    assert cli.main(["diagnosticar-tls"]) == 1
+    assert "sin clave" in capsys.readouterr().out
+
+
+def test_no_insecure_tls_anywhere_in_source(root):
+    for f in (root / "argos").rglob("*.py"):
+        text = f.read_text(encoding="utf-8")
+        for pat in INSECURE_PATTERNS:
+            assert pat not in text, f"{f.name} contiene {pat!r}"
+
+
+def test_certifi_is_pinned(root):
+    reqs = (root / "requirements.txt").read_text()
+    assert _re.search(r"^certifi==\d{4}\.\d+\.\d+$", reqs, _re.M)

@@ -27,6 +27,9 @@ import json
 import math
 import os
 import re
+import socket
+import ssl
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -36,10 +39,13 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+import certifi
+
 from argos import __version__
 from argos.experiments.registry import ARGOS_ROOT, file_sha256
 
-API_BASE = "https://api.tiingo.com/tiingo/daily"
+API_HOST = "api.tiingo.com"
+API_BASE = f"https://{API_HOST}/tiingo/daily"
 ENV_KEY = "TIINGO_API_KEY"
 RAW_DIR = ARGOS_ROOT / "data" / "raw" / "tiingo"
 CSV_DIR = ARGOS_ROOT / "data" / "csv"
@@ -78,6 +84,10 @@ class RawDataError(TiingoError):
     pass
 
 
+class TiingoTLSError(TiingoError):
+    """No se pudo verificar la identidad del servidor. Nunca se reintenta sin verificación."""
+
+
 # ------------------------------------------------------------------ clave
 
 
@@ -104,15 +114,92 @@ def scrub(text: str, secret: str | None) -> str:
 Fetcher = Callable[[str, dict], tuple[int, dict, bytes]]
 
 
+def tls_context() -> ssl.SSLContext:
+    """Contexto TLS con verificación COMPLETA (certificado + nombre de host) y TLS ≥ 1.2.
+
+    Las autoridades de confianza son las del paquete `certifi` (lista de Mozilla, versión
+    fijada en requirements.txt), no el almacén de Windows: Python no activa la descarga
+    automática de raíces de Windows y puede acabar construyendo una cadena con un
+    certificado caducado. Así la confianza es explícita, actualizable y reproducible.
+    """
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    if ctx.verify_mode != ssl.CERT_REQUIRED or not ctx.check_hostname:  # salvaguarda: nunca sin verificar
+        raise TiingoTLSError("Contexto TLS sin verificación: no se permite.")
+    return ctx
+
+
+def _tls_message(err: ssl.SSLError) -> str:
+    detail = getattr(err, "verify_message", None) or getattr(err, "reason", None) or str(err)
+    return (
+        f"No se pudo verificar el certificado de {API_HOST} ({detail}). ARGOS no se conecta sin verificar. "
+        "Causas habituales: el reloj del PC tiene mal la fecha u hora; un antivirus o proxy inspecciona "
+        "las conexiones HTTPS; o el paquete de certificados está desactualizado (pip install -U -r requirements.txt). "
+        "Diagnóstico sin clave y sin descargar datos: python -m argos.tools.tiingo diagnosticar-tls"
+    )
+
+
 def urllib_fetch(url: str, headers: dict, timeout: float = 60.0) -> tuple[int, dict, bytes]:
     req = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=tls_context()) as resp:
             return resp.status, dict(resp.headers), resp.read()
     except urllib.error.HTTPError as exc:
         return exc.code, dict(exc.headers or {}), exc.read() or b""
     except urllib.error.URLError as exc:
+        if isinstance(exc.reason, ssl.SSLError):
+            raise TiingoTLSError(_tls_message(exc.reason)) from None
         raise TiingoResponseError(f"No se pudo conectar con Tiingo: {exc.reason}.") from None
+    except ssl.SSLError as exc:
+        raise TiingoTLSError(_tls_message(exc)) from None
+
+
+def diagnose_tls(host: str = API_HOST, port: int = 443, timeout: float = 15.0,
+                 handshake: Callable | None = None) -> tuple[bool, list[str]]:
+    """Solo abre una conexión TLS verificada y la cierra: no envía la clave ni pide datos.
+
+    Compara la confianza de `certifi` (la que usa ARGOS) con la del sistema operativo, para
+    distinguir entre reloj incorrecto, antivirus/proxy que intercepta HTTPS y certificados
+    desactualizados. Nunca prueba sin verificación.
+    """
+    handshake = handshake or _handshake
+    lines = [
+        f"Fecha y hora de este PC (UTC): {datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S}  ← compárala con la hora real",
+        f"Python {sys.version.split()[0]} · {ssl.OPENSSL_VERSION}",
+        f"certifi {certifi.__version__} · {certifi.where()}",
+    ]
+    results = {}
+    for name, ctx_factory in (("certifi (la que usa ARGOS)", tls_context), ("sistema operativo", ssl.create_default_context)):
+        try:
+            cert = handshake(host, port, timeout, ctx_factory())
+            subject = dict(x[0] for x in cert.get("subject", ()))
+            issuer = dict(x[0] for x in cert.get("issuer", ()))
+            results[name] = True
+            lines.append(f"[OK]    Confianza {name}: certificado de {subject.get('commonName', '?')} "
+                         f"emitido por {issuer.get('organizationName', issuer.get('commonName', '?'))}, "
+                         f"válido hasta {cert.get('notAfter', '?')}")
+        except ssl.SSLCertVerificationError as exc:
+            results[name] = False
+            lines.append(f"[FALLO] Confianza {name}: {exc.verify_message} (código {exc.verify_code})")
+        except (ssl.SSLError, OSError) as exc:
+            results[name] = False
+            lines.append(f"[FALLO] Confianza {name}: {exc}")
+    ok = results.get("certifi (la que usa ARGOS)", False)
+    if ok:
+        lines.append("Conclusión: ARGOS puede conectar con Tiingo verificando el certificado.")
+    elif results.get("sistema operativo"):
+        lines.append("Conclusión: solo funciona con los certificados de Windows. Suele indicar un antivirus o proxy que "
+                     "intercepta HTTPS con su propio certificado. Revisa la opción de análisis HTTPS de tu antivirus.")
+    else:
+        lines.append("Conclusión: falla con ambos. Comprueba primero la fecha y hora del PC (Configuración → Hora e idioma → "
+                     "Sincronizar ahora) y después el antivirus/proxy. No desactives la verificación.")
+    return ok, lines
+
+
+def _handshake(host: str, port: int, timeout: float, ctx: ssl.SSLContext) -> dict:
+    with socket.create_connection((host, port), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=host) as tls:
+            return tls.getpeercert()
 
 
 def build_url(ticker: str, start: date, end: date) -> str:

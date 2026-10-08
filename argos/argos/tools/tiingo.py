@@ -2,6 +2,7 @@
 
     python -m argos.tools.tiingo descargar   # 1. baja los originales a data/raw/tiingo/ (necesita TIINGO_API_KEY)
     python -m argos.tools.tiingo convertir   # 2. los convierte a data/csv/ y ejecuta el control de integridad
+    python -m argos.tools.tiingo diagnosticar-tls  # comprueba solo la conexión TLS (sin clave ni datos)
 
 Activos y fechas salen del protocolo (por defecto EXP-001, activos principales):
 no se pueden cambiar desde aquí. La clave solo se lee de la variable TIINGO_API_KEY.
@@ -36,9 +37,9 @@ def cmd_descargar(args) -> int:
     for t in tickers:
         try:
             rec = tiingo.download_ticker(t, start, end, key=key)
-        except tiingo.TiingoAuthError as exc:
+        except (tiingo.TiingoAuthError, tiingo.TiingoTLSError) as exc:
             print(f"  ✕ {exc}")
-            print("Se detiene la descarga: sin autenticación válida no tiene sentido seguir.")
+            print("Se detiene la descarga: sin una conexión verificada y autenticada no tiene sentido seguir.")
             return 2
         except tiingo.TiingoError as exc:
             print(f"  ✕ {exc}")
@@ -76,6 +77,14 @@ def cmd_convertir(args) -> int:
     return check_main(["--protocolo", args.protocolo, *tickers])
 
 
+def cmd_diagnosticar_tls(_args) -> int:
+    ok, lines = tiingo.diagnose_tls()
+    print(f"Diagnóstico TLS de {tiingo.API_HOST} (sin clave, sin descargar datos):")
+    for line in lines:
+        print(f"  {line}")
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m argos.tools.tiingo", description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -88,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
         if name == "convertir":
             p.add_argument("--sobrescribir", action="store_true", help="Reemplazar un CSV existente con contenido distinto.")
         p.set_defaults(fn=fn)
+    diag = sub.add_parser("diagnosticar-tls", help="Comprueba la conexión TLS con Tiingo (sin clave ni datos).")
+    diag.set_defaults(fn=cmd_diagnosticar_tls)
     args = ap.parse_args(argv)
     try:
         return args.fn(args)
