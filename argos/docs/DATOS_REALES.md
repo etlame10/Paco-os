@@ -10,6 +10,57 @@ Para cada activo, una tabla con **una fila por día de mercado** desde **enero d
 - **¿Por qué hasta 2025?** Es el final del periodo fuera de muestra. 2026 queda reservado para una validación futura y **no se mira**.
 - **Precios ajustados.** Si la acción tuvo un *split* o repartió dividendos, los precios antiguos deben estar ajustados. Si no lo están, ARGOS vería una "caída" falsa el día del split y la contaría como pérdida.
 
+## 1 bis. Fuente elegida: Tiingo
+
+Tiingo da, por una vía oficial y repetible, las cuatro columnas de precio **ajustadas por splits y dividendos** (`adjOpen`, `adjHigh`, `adjLow`, `adjClose`) y además indica cada split (`splitFactor`) y cada dividendo (`divCash`). Plan gratuito con clave personal; licencia de **uso personal** (no publiques los datos).
+
+### Cadena completa
+
+```
+Tiingo ──► data/raw/tiingo/  (original intacto + manifest.jsonl con fecha y SHA-256)
+       ──► data/csv/<TICKER>.csv + <TICKER>.source.txt   (conversión mecánica)
+       ──► control de integridad con los requisitos de EXP-001
+```
+
+- **Activos y fechas** se leen del protocolo (solo lectura): SPY, KO, AAPL, XOM · 2007-01-01 → 2025-12-31. No se pueden cambiar desde la línea de comandos.
+- **La clave** se lee **solo** de la variable de entorno `TIINGO_API_KEY`, viaja en la cabecera HTTP (no en la URL) y nunca se escribe en ningún fichero ni se muestra en pantalla. Si falta, el programa se detiene.
+- **Los originales** se guardan byte a byte, con un nombre único que incluye la fecha de descarga; nunca se sobrescriben. Su SHA-256 queda en `data/raw/tiingo/manifest.jsonl`.
+- **Antes de guardar** se valida la respuesta: errores de autenticación, ticker desconocido, límite de peticiones, respuestas vacías, mensajes en lugar de CSV, columnas que faltan, filas cortadas, valores vacíos o no numéricos, fechas mal formadas, duplicadas, desordenadas o fuera de rango, y filas cuyas cuatro columnas ajustadas no usan el mismo factor. En todos esos casos se detiene **sin guardar nada**.
+- **La conversión** comprueba primero que el original no ha cambiado (SHA-256) y copia literalmente el texto de `adjOpen, adjHigh, adjLow, adjClose, adjVolume` como `open, high, low, close, volume`. Solo normaliza la fecha a `AAAA-MM-DD`. No redondea, no calcula y no rellena nada. No sobrescribe un CSV distinto sin `--sobrescribir`.
+- El `.source.txt` resume la procedencia, las dos huellas, el método y los splits y dividendos que declara Tiingo, para revisarlos.
+
+### Configurar la clave en Windows
+
+1. Crea una cuenta gratuita en tiingo.com y copia tu *API token* (en tu perfil, apartado API).
+2. Guárdala como variable de entorno **de tu usuario** (no se guarda en ARGOS ni en git):
+   - **Recomendado (sin dejar rastro en el historial de comandos):** menú Inicio → escribe «variables de entorno» → *Editar las variables de entorno de esta cuenta* → *Nueva…* → Nombre `TIINGO_API_KEY`, Valor: tu clave → Aceptar. Después **cierra y vuelve a abrir** la terminal.
+   - **Solo para la ventana actual de PowerShell**, pidiendo la clave sin que quede en el historial:
+     ```powershell
+     $env:TIINGO_API_KEY = Read-Host "Clave de Tiingo"
+     ```
+   - Evita `setx TIINGO_API_KEY tu_clave`: funciona, pero la clave queda escrita en el historial de PowerShell.
+3. Comprueba que existe sin mostrarla:
+   ```powershell
+   if ($env:TIINGO_API_KEY) { "TIINGO_API_KEY configurada" } else { "Falta TIINGO_API_KEY" }
+   ```
+
+### Descargar, convertir y validar (en tu ordenador)
+
+Desde la carpeta `argos` del proyecto, en PowerShell:
+
+```powershell
+py -m venv .venv                       # solo la primera vez
+.venv\Scripts\activate
+pip install -r requirements-dev.txt    # solo la primera vez
+
+python -m argos.tools.tiingo descargar     # 1. originales a data\raw\tiingo\
+python -m argos.tools.tiingo convertir     # 2. CSV de ARGOS + control de integridad de EXP-001
+```
+
+`descargar` termina con código 0 si los cuatro activos se descargaron y validaron. Ante un error de autenticación se detiene sin seguir con el resto. `convertir` termina con código 0 solo si los cuatro CSV superan el control de integridad del protocolo.
+
+> El entorno en la nube donde se desarrolló ARGOS no tiene acceso de red a Tiingo, y de todos modos es mejor que tu clave no salga de tu ordenador: ejecuta la descarga en tu PC.
+
 ## 2. Formato exacto
 
 Fichero `data/csv/<TICKER>.csv` (por ejemplo `data/csv/SPY.csv`):
@@ -34,7 +85,7 @@ Muchas descargas traen `Open, High, Low, Close, Adj Close, Volume`. En ellas `Cl
 python -m argos.tools.adjust_csv descarga_KO.csv data/csv/KO.csv
 ```
 
-Multiplica apertura, máximo y mínimo por `Adj Close / Close`, usa `Adj Close` como cierre y lo anota en `KO.source.txt`. No rellena nada: si una fila está incompleta (por ejemplo `null`), se detiene e indica la línea.
+(No es necesario con Tiingo: su conversor ya usa las columnas ajustadas.) Multiplica apertura, máximo y mínimo por `Adj Close / Close`, usa `Adj Close` como cierre y lo anota en `KO.source.txt`. No rellena nada: si una fila está incompleta (por ejemplo `null`), se detiene e indica la línea.
 
 ## 3. Qué activos y por qué
 

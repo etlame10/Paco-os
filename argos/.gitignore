@@ -6,3 +6,11 @@ __pycache__/
 data/csv/*.csv
 # Registro y resultados de experimentos: locales. Súbelos a mano si quieres conservarlos.
 data/experiments/
+# Originales descargados de Tiingo (licencia de uso personal): nunca al repositorio.
+data/raw/
+# Notas de procedencia de tus datos (contienen rutas y huellas locales).
+data/csv/*.source.txt
+# Claves y configuración local.
+.env
+.env.*
+*.key

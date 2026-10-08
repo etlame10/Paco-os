@@ -44,6 +44,8 @@ Pestaña **Backtest** de la interfaz (o `GET /api/backtest?ticker=DEMO-LATERAL&s
 ARGOS trabaja con experimentos **pre-registrados**: hipótesis, reglas, activos, periodos y criterios se fijan antes de ver los datos (`protocols/`). Filosofía y registro: **[docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md)**. Qué datos aportar y cómo comprobarlos: **[docs/DATOS_REALES.md](docs/DATOS_REALES.md)**.
 
 ```bash
+python -m argos.tools.tiingo descargar           # originales de Tiingo (necesita TIINGO_API_KEY)
+python -m argos.tools.tiingo convertir           # CSV de ARGOS + control de integridad
 python -m argos.data.check --protocolo EXP-001   # control de integridad de tus CSV
 python -m argos.experiments.runner EXP-001       # experimento tal cual está registrado
 ```
