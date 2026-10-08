@@ -213,9 +213,37 @@ def test_successful_download_keeps_original_bytes_and_manifest(tmp_path):
 
 def test_original_is_never_overwritten(tmp_path):
     download(tmp_path, FakeTiingo())
-    with pytest.raises(tiingo.TiingoError, match="nunca se sobrescriben"):
-        download(tmp_path, FakeTiingo())
+    with pytest.raises(tiingo.TiingoError, match="nunca se sobrescriben"):  # misma marca de tiempo
+        tiingo.download_ticker("SPY", START, END, key=KEY, raw_dir=tmp_path / "raw", fetch=FakeTiingo(),
+                               now=FIXED_NOW, allow_new=True)
     assert len(tiingo.read_manifest(tmp_path / "raw")) == 1
+
+
+def test_repeat_download_is_refused_unless_requested(tmp_path):
+    """Descargar dos veces el mismo rango no duplica datos: se rechaza salvo petición expresa."""
+    download(tmp_path, FakeTiingo())
+    fake = FakeTiingo()
+    with pytest.raises(tiingo.AlreadyDownloadedError, match="--nueva-descarga"):
+        download(tmp_path, fake)
+    assert fake.calls == []  # ni siquiera se contacta con Tiingo
+    later = lambda: datetime(2026, 10, 9, 12, 0, 0, tzinfo=timezone.utc)  # noqa: E731
+    rec = tiingo.download_ticker("SPY", START, END, key=KEY, raw_dir=tmp_path / "raw", fetch=FakeTiingo(),
+                                 now=later, allow_new=True)
+    assert rec.raw_file.endswith("20261009T120000Z.csv")
+    assert len(tiingo.read_manifest(tmp_path / "raw")) == 2
+
+
+def test_cli_skips_already_downloaded(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("TIINGO_API_KEY", KEY)
+    raw = tmp_path / "raw"
+    real = tiingo.download_ticker
+    monkeypatch.setattr(tiingo, "download_ticker",
+                        lambda t, s, e, **k: real(t, s, e, fetch=FakeTiingo(), raw_dir=raw, now=FIXED_NOW, key=KEY,
+                                                  allow_new=k.get("allow_new", False)))
+    assert cli.main(["descargar"]) == 0
+    assert cli.main(["descargar"]) == 0  # segunda vez: no descarga nada
+    assert len(tiingo.read_manifest(raw)) == 4
+    assert capsys.readouterr().out.count("ya existe una descarga") == 4
 
 
 def test_other_tickers_continue_after_non_auth_error(tmp_path, monkeypatch):

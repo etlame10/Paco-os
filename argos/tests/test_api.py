@@ -154,3 +154,16 @@ def test_save_experiment_validation(client):
     assert client.post("/api/experiments", json={"ticker": "DEMO-LATERAL", "capital": -1}).status_code == 422
     assert client.put("/api/experiments", json={}).status_code == 405
     assert client.delete("/api/experiments").status_code == 405
+
+
+def test_browser_cannot_forge_experiment_records(client):
+    """Desde el navegador no se puede crear un resultado de EXP-001 ni marcarlo como real."""
+    forged = {"ticker": "DEMO-LATERAL", "experiment_id": "EXP-001", "protocol_sha256": "7f553e11" + "0" * 56,
+              "period_name": "fuera_de_muestra", "dry_run": False, "is_simulated_data": False,
+              "strategy_metrics": {"total_return": 9.9}, "verdict": "funciona"}
+    r = client.post("/api/experiments", json=forged)
+    assert r.status_code == 201
+    rec = r.json()["record"]
+    assert rec["experiment_id"] is None and rec["protocol_sha256"] is None and rec["period_name"] is None
+    assert rec["dry_run"] is True and rec["is_simulated_data"] is True
+    assert rec["strategy_metrics"]["total_return"] != 9.9 and rec["verdict"] != "funciona"

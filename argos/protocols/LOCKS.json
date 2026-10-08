@@ -1,0 +1,7 @@
+{
+  "_nota": "Huellas SHA-256 de los protocolos pre-registrados. El ejecutor se niega a correr un protocolo cuya huella no coincida. Cambiar un protocolo exige crear otro (EXP-002...), nunca editar esta lista para que encaje.",
+  "EXP-001": {
+    "sha256": "7f553e110fff59245a96504bdd0107b179550164eaf3800cbe8664f34cc98cce",
+    "preregistration_commit": "6b230de"
+  }
+}

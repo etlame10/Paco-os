@@ -84,6 +84,10 @@ class RawDataError(TiingoError):
     pass
 
 
+class AlreadyDownloadedError(TiingoError):
+    """Ya hay una descarga válida del mismo activo y rango: no se repite sin pedirlo."""
+
+
 class TiingoTLSError(TiingoError):
     """No se pudo verificar la identidad del servidor. Nunca se reintenta sin verificación."""
 
@@ -279,8 +283,18 @@ def download_ticker(
     raw_dir: Path = RAW_DIR,
     fetch: Fetcher = urllib_fetch,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    allow_new: bool = False,
 ) -> DownloadRecord:
     ticker = validate_ticker(ticker)
+    if not allow_new:
+        previous = [e for e in read_manifest(raw_dir) if e["ticker"] == ticker and e.get("status") == "ok"
+                    and e["start"] == start.isoformat() and e["end"] == end.isoformat()]
+        if previous and (raw_dir / previous[-1]["raw_file"]).is_file():
+            raise AlreadyDownloadedError(
+                f"{ticker}: ya existe una descarga de {start} → {end} ({previous[-1]['raw_file']}). No se vuelve a "
+                "descargar: los precios ajustados cambian con cada nuevo dividendo y la nueva copia no sería idéntica. "
+                "Usa --nueva-descarga solo si quieres conscientemente otra versión."
+            )
     url = build_url(ticker, start, end)
     headers = {"Authorization": f"Token {key}", "Accept": "text/csv", "User-Agent": f"ARGOS/{__version__}"}
     try:
@@ -439,6 +453,14 @@ class ConversionResult:
     dividends_per_year: dict[int, int]
 
 
+def render_converted(series: RawSeries) -> bytes:
+    """Bytes exactos del CSV de ARGOS a partir del original (función pura, sin E/S)."""
+    out_lines = ["date,open,high,low,close,volume"]
+    for r in series.rows:
+        out_lines.append(",".join([r.date.isoformat(), *(r.values[MAPPING[c]] for c in ("open", "high", "low", "close", "volume"))]))
+    return ("\n".join(out_lines) + "\n").encode("utf-8")
+
+
 def convert(
     ticker: str,
     *,
@@ -461,10 +483,7 @@ def convert(
     raw_text = raw_path.read_text(encoding="utf-8")
     series = parse_raw(raw_text, raw_path.name, date.fromisoformat(entry["start"]), date.fromisoformat(entry["end"]))
 
-    out_lines = ["date,open,high,low,close,volume"]
-    for r in series.rows:
-        out_lines.append(",".join([r.date.isoformat(), *(r.values[MAPPING[c]] for c in ("open", "high", "low", "close", "volume"))]))
-    content = ("\n".join(out_lines) + "\n").encode("utf-8")
+    content = render_converted(series)
 
     csv_dir.mkdir(parents=True, exist_ok=True)
     csv_path = csv_dir / f"{ticker}.csv"

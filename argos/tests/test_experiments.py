@@ -48,6 +48,7 @@ def lab(tmp_path):
     pdir = tmp_path / "protocols"
     pdir.mkdir()
     shutil.copy(load_protocol("EXP-001")[2], pdir / "EXP-001.json")
+    shutil.copy(load_protocol("EXP-001")[2].parent / "LOCKS.json", pdir / "LOCKS.json")
     data = tmp_path / "csv"
     data.mkdir()
     protocol, _, _ = load_protocol("EXP-001", pdir)
@@ -258,3 +259,31 @@ def test_adjust_csv_refuses_incomplete_rows(tmp_path):
     src.write_text("Date,Open,High,Low,Close,Adj Close,Volume\n2024-01-02,null,110,90,100,50,1000\n")
     with pytest.raises(SystemExit, match="línea 2"):
         adjust(src, tmp_path / "o.csv")
+
+
+def test_preregistration_lock_protects_before_first_real_run(lab):
+    """Aunque el registro esté VACÍO, un protocolo editado no se ejecuta (LOCKS.json)."""
+    from argos.experiments.protocol import check_preregistered
+
+    pdir, data, reg = lab
+    p = pdir / "EXP-001.json"
+    p.write_text(p.read_text().replace('"fast": 50', '"fast": 45'))
+    assert reg.list() == []
+    with pytest.raises(ProtocolChangedError, match="no coincide con el pre-registrado"):
+        run_experiment("EXP-001", data_dir=data, registry=reg, protocol_dir=pdir)
+    assert reg.list() == []  # no se registró nada
+    (pdir / "LOCKS.json").unlink()
+    with pytest.raises(ProtocolChangedError, match="Falta LOCKS.json"):
+        check_preregistered("EXP-001", "x" * 64, pdir)
+    with pytest.raises(ProtocolChangedError, match="no figura"):
+        (pdir / "LOCKS.json").write_text("{}")
+        check_preregistered("EXP-001", "x" * 64, pdir)
+
+
+def test_locks_file_matches_committed_protocol(root):
+    import hashlib
+
+    locks = json.loads((root / "protocols" / "LOCKS.json").read_text())
+    actual = hashlib.sha256((root / "protocols" / "EXP-001.json").read_bytes()).hexdigest()
+    assert locks["EXP-001"]["sha256"] == actual == "7f553e110fff59245a96504bdd0107b179550164eaf3800cbe8664f34cc98cce"
+    assert locks["EXP-001"]["preregistration_commit"] == "6b230de"

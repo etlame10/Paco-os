@@ -187,8 +187,10 @@ def assess_quality(history: PriceHistory, requirements: QualityRequirements | No
             "el backtest contaría una pérdida o ganancia que no existió. Usa precios ajustados.", splits[:5])
     else:
         add("splits", "Sin splits sin ajustar", OK,
-            "No se detectan saltos con proporción de split. (El ajuste por dividendos no se puede verificar: "
-            "confírmalo con tu fuente.)")
+            "No hay saltos con proporción de split en esta serie. En una serie AJUSTADA es lo esperado y NO "
+            "significa que no hubiera splits: los splits declarados por el proveedor se listan en el .source.txt "
+            "y se contrastan con `python -m argos.data.audit`. (El ajuste por dividendos tampoco se puede "
+            "verificar aquí.)")
     add("saltos", f"Sin saltos diarios > {JUMP_THRESHOLD:.0%}", WARN if jumps else OK,
         (f"{len(jumps)} variación(es) diaria(s) de más del {JUMP_THRESHOLD:.0%}. Pueden ser reales (crisis, "
          "resultados) o errores: revísalas." if jumps else f"Ninguna variación diaria superior al {JUMP_THRESHOLD:.0%}."),

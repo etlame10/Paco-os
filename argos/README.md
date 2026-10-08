@@ -47,6 +47,7 @@ ARGOS trabaja con experimentos **pre-registrados**: hipótesis, reglas, activos,
 python -m argos.tools.tiingo descargar           # originales de Tiingo (necesita TIINGO_API_KEY)
 python -m argos.tools.tiingo convertir           # CSV de ARGOS + control de integridad
 python -m argos.data.check --protocolo EXP-001   # control de integridad de tus CSV
+python -m argos.data.audit                       # auditoría profunda (calendario, ajustes, procedencia)
 python -m argos.experiments.runner EXP-001       # experimento tal cual está registrado
 ```
 

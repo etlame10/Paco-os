@@ -27,7 +27,7 @@ from argos.data.base import DataProviderError, TickerNotFoundError
 from argos.data.providers.csv_provider import CsvProvider
 from argos.data.quality import DataQualityReport, QualityRequirements
 from argos.data.registry import ProviderRegistry
-from argos.experiments.protocol import Protocol, check_protocol_lock, load_protocol
+from argos.experiments.protocol import Protocol, check_preregistered, check_protocol_lock, load_protocol
 from argos.experiments.registry import ARGOS_ROOT, ExperimentRegistry, file_sha256, git_commit
 from argos.experiments.regimes import RegimeSummary, YearResult, summarize_regimes, yearly_results
 from argos.strategy.base import get_strategy
@@ -133,6 +133,7 @@ def run_experiment(
     protocol, sha, _ = load_protocol(experiment_id, protocol_dir)
     registry = registry or ExperimentRegistry()
     if not dry_run:
+        check_preregistered(experiment_id, sha, protocol_dir)
         check_protocol_lock(protocol, sha, registry)
 
     csv = CsvProvider(data_dir)

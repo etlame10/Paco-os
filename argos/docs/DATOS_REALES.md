@@ -59,6 +59,16 @@ python -m argos.tools.tiingo convertir     # 2. CSV de ARGOS + control de integr
 
 `descargar` termina con código 0 si los cuatro activos se descargaron y validaron. Ante un error de autenticación se detiene sin seguir con el resto. `convertir` termina con código 0 solo si los cuatro CSV superan el control de integridad del protocolo.
 
+### Auditar los CSV antes de EXP-001
+
+```powershell
+.venv\Scripts\python.exe -m argos.data.audit --salida auditoria.md
+```
+
+No ejecuta ninguna estrategia ni descarga nada. Para cada activo comprueba: huella, valores, orden, coherencia OHLC, **sesiones frente al calendario de la NYSE** (distingue festivos de huecos reales), precios repetidos, saltos, procedencia, que el original esté intacto, que la conversión sea reproducible byte a byte y que **los ajustes de Tiingo cuadren con los splits y dividendos que declara**. Detalles y condiciones para autorizar EXP-001: [AUDITORIA_EXP-001.md](AUDITORIA_EXP-001.md).
+
+> «Sin splits sin ajustar» en el control de calidad **no** significa que no hubiera splits: en una serie ajustada los splits no producen saltos. Los splits declarados aparecen en el `.source.txt` y en la auditoría.
+
 ### Si aparece `CERTIFICATE_VERIFY_FAILED` (por ejemplo, «certificate has expired»)
 
 ARGOS verifica siempre el certificado de Tiingo y **nunca** se conecta sin verificar. Usa las autoridades de confianza del paquete `certifi` (lista de Mozilla, versión fijada en `requirements.txt`) en lugar del almacén de Windows, que Python no actualiza automáticamente.

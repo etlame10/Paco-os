@@ -36,7 +36,10 @@ def cmd_descargar(args) -> int:
     failed = 0
     for t in tickers:
         try:
-            rec = tiingo.download_ticker(t, start, end, key=key)
+            rec = tiingo.download_ticker(t, start, end, key=key, allow_new=args.nueva_descarga)
+        except tiingo.AlreadyDownloadedError as exc:
+            print(f"  = {exc}")
+            continue
         except (tiingo.TiingoAuthError, tiingo.TiingoTLSError) as exc:
             print(f"  ✕ {exc}")
             print("Se detiene la descarga: sin una conexión verificada y autenticada no tiene sentido seguir.")
@@ -94,6 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--protocolo", default="EXP-001")
         p.add_argument("--tickers", nargs="*", help="Subconjunto de activos del protocolo (por defecto, los principales).")
         p.add_argument("--complementarios", action="store_true", help="Incluir también los activos complementarios.")
+        if name == "descargar":
+            p.add_argument("--nueva-descarga", action="store_true",
+                           help="Descargar otra versión aunque ya exista una descarga válida del mismo rango.")
         if name == "convertir":
             p.add_argument("--sobrescribir", action="store_true", help="Reemplazar un CSV existente con contenido distinto.")
         p.set_defaults(fn=fn)

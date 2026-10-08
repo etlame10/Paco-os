@@ -9,6 +9,7 @@ resultados reales, ARGOS se niega a ejecutarlo (habría que crear otro experimen
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import date
 from pathlib import Path
 
@@ -60,6 +61,24 @@ def load_protocol(experiment_id: str, directory: Path | None = None) -> tuple[Pr
         raise FileNotFoundError(f"No existe el protocolo {path.name}.")
     raw = path.read_bytes()
     return Protocol.model_validate_json(raw), hashlib.sha256(raw).hexdigest(), path
+
+
+def check_preregistered(experiment_id: str, sha: str, directory: Path | None = None) -> None:
+    """Rechaza un protocolo cuya huella no coincide con la registrada en LOCKS.json.
+
+    Protege también ANTES de la primera ejecución real (el registro de resultados aún está vacío).
+    """
+    locks_path = (directory or PROTOCOLS_DIR) / "LOCKS.json"
+    if not locks_path.is_file():
+        raise ProtocolChangedError(f"Falta {locks_path.name}: no se puede comprobar que {experiment_id} sea el pre-registrado.")
+    lock = json.loads(locks_path.read_text(encoding="utf-8")).get(experiment_id)
+    if not lock:
+        raise ProtocolChangedError(f"{experiment_id} no figura en {locks_path.name}: no está pre-registrado.")
+    if lock["sha256"] != sha:
+        raise ProtocolChangedError(
+            f"El protocolo {experiment_id} no coincide con el pre-registrado (commit {lock.get('preregistration_commit')}): "
+            f"huella {sha[:12]}… ≠ {lock['sha256'][:12]}…. No se ejecuta. Si quieres cambiarlo, crea un experimento nuevo."
+        )
 
 
 def check_protocol_lock(protocol: Protocol, sha: str, registry: ExperimentRegistry) -> None:
