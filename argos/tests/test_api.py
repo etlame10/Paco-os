@@ -61,3 +61,49 @@ def test_api_is_read_only(client):
             assert word not in route.path.lower(), route.path
     for method in ("post", "put", "delete", "patch"):
         assert getattr(client, method)("/api/analyze/DEMO-ALCISTA").status_code == 405
+
+
+# ----------------------------------------------------------------- backtest
+
+
+def test_backtest_options(client):
+    opts = client.get("/api/backtest/options").json()
+    assert all(t["is_simulated"] for t in opts["tickers"])
+    names = [s["name"] for s in opts["strategies"]]
+    assert names == ["sma_crossover"]
+    assert opts["strategies"][0]["params"]["fast"]["default"] == 50
+
+
+def test_backtest_endpoint_runs_demo(client):
+    r = client.get("/api/backtest", params={"ticker": "DEMO-LATERAL", "strategy": "sma_crossover",
+                                            "capital": 5000, "commission_percent": 0.2, "slippage_percent": 0.1,
+                                            "fast": 20, "slow": 50})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["strategy"]["metrics"]["initial_capital"] == 5000
+    assert body["transparency"]["strategy"]["params"] == {"fast": 20, "slow": 50}
+    assert "0.200%" in body["transparency"]["commission"]
+    assert body["is_simulated_data"] is True
+    assert body["lookahead_audit"]["passed"] is True
+    assert body["live_trading_enabled"] is False
+    assert "NO PREDICCIÓN" in body["warning"]
+
+
+@pytest.mark.parametrize(
+    "params, status",
+    [
+        ({"ticker": "AAPL"}, 404),
+        ({"ticker": "DEMO-LATERAL", "fast": 200, "slow": 50}, 400),
+        ({"ticker": "DEMO-LATERAL", "strategy": "no_existe"}, 400),
+        ({"ticker": "DEMO-LATERAL", "start": "2025-06-01", "end": "2025-01-01"}, 400),
+        ({"ticker": "DEMO-LATERAL", "start": "2025-13-01"}, 422),
+        ({"ticker": "DEMO-LATERAL", "start": "2000-01-01", "end": "2001-01-01"}, 422),
+        ({"ticker": "DEMO-LATERAL", "capital": -5}, 422),
+        ({"ticker": "DEMO-LATERAL", "commission_percent": 50}, 422),
+        ({"ticker": "<x>"}, 400),
+    ],
+)
+def test_backtest_endpoint_errors(client, params, status):
+    r = client.get("/api/backtest", params=params)
+    assert r.status_code == status, r.text
+    assert r.json()["detail"]

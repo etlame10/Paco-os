@@ -10,6 +10,9 @@ import re
 
 from argos.core.models import Bar, PriceHistory
 
+#: Variación diaria de cierre a partir de la cual se avisa (no se corrige).
+SUSPICIOUS_JUMP = 0.40
+
 _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-^=]{0,19}$")
 
 
@@ -51,5 +54,13 @@ def normalize_history(history: PriceHistory) -> PriceHistory:
             notes.append(f"Barra del {d.isoformat()} descartada: {problem}.")
         else:
             clean.append(bar)
+
+    for prev, cur in zip(clean, clean[1:]):
+        jump = cur.close / prev.close - 1
+        if abs(jump) > SUSPICIOUS_JUMP:
+            notes.append(
+                f"Aviso: el cierre cambia {jump * 100:+.0f}% entre {prev.date} y {cur.date}. "
+                "Puede ser un split o dividendo no ajustado, o un error en los datos. Se conserva tal cual."
+            )
 
     return history.model_copy(update={"bars": clean, "normalization_notes": notes})

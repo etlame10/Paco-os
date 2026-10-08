@@ -27,11 +27,17 @@ Abre <http://localhost:8000> y analiza un ticker de demostración (`DEMO-ALCISTA
 | Fuente | Qué es | ¿Real? |
 | --- | --- | --- |
 | `demo` | Series generadas por ordenador para **empresas ficticias** (`DEMO-*`). Deterministas y con fechas fijas en el pasado. | ❌ Simulado, marcado en toda la interfaz |
-| `csv` | Ficheros `data/csv/<TICKER>.csv` con columnas `date,open,high,low,close,volume` que tú descargues. | ✅ Real (ARGOS no verifica su origen) |
+| `csv` | Ficheros `data/csv/<TICKER>.csv` que tú descargues. | ✅ Real (ARGOS no verifica su origen). Los ficheros `DEMO-*.csv` se tratan como simulados. |
 
 Si pides un ticker real (p. ej. `AAPL`) sin tener datos reales, ARGOS **responde que no tiene datos**; nunca los inventa.
 
-Para analizar AAPL con datos reales hoy mismo: descarga su histórico diario en CSV, guárdalo como `data/csv/AAPL.csv` (los CSV no se suben a git) y analízalo.
+**Formato exacto del CSV, con ejemplos: [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md).** En resumen: `date,open,high,low,close,volume`, fechas `AAAA-MM-DD`, punto decimal, una fila por sesión (diario), fichero `data/csv/AAPL.csv`.
+
+## Backtesting
+
+Pestaña **Backtest** de la interfaz (o `GET /api/backtest?ticker=DEMO-LATERAL&strategy=sma_crossover`). Simula una estrategia sobre el histórico con capital, comisión, slippage y periodo configurables, y la compara **siempre** con Buy & Hold. Detalles, reglas y garantías anti look-ahead: **[docs/BACKTESTING.md](docs/BACKTESTING.md)**.
+
+> Un backtest es un resultado histórico, no una predicción.
 
 ## Arquitectura
 
@@ -39,10 +45,8 @@ Ver **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: capas, cómo añadir prove
 
 ## Estado
 
-- ✅ Capa de datos con proveedores intercambiables (demo + CSV), normalización y validación.
-- ✅ Análisis técnico: medias, RSI, MACD, ATR, volumen, rentabilidades, soportes/resistencias.
-- ✅ Motor de riesgo: volatilidad, caída máxima, VaR histórico y escenarios estadísticos.
-- ✅ Conclusión auditable (factores visibles con peso y contribución) y explicación en lenguaje natural.
-- ✅ Interfaz web oscura con paneles de activo, precio, indicadores, análisis, riesgo, conclusión y explicación.
-- ✅ Estrategias de ejemplo (Buy & Hold, cruce de medias) y métricas de backtesting.
-- ⏳ Motor de backtesting, análisis fundamental, noticias, paper trading, TradingView.
+- ✅ Capa de datos con proveedores intercambiables (demo + CSV estricto), normalización y validación.
+- ✅ Análisis técnico, motor de riesgo, conclusión auditable y explicación en lenguaje natural.
+- ✅ Backtesting: motor independiente de la estrategia, comisión y slippage, comparación con Buy & Hold, auditoría anti look-ahead automática, interfaz con resumen, comparación, operaciones, gráfico y transparencia.
+- ✅ Estrategia de prueba: cruce de medias 50/200 (sin optimizar).
+- ⏳ Análisis fundamental, noticias, paper trading, TradingView.

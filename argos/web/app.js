@@ -20,7 +20,7 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-const nf = (d) => new Intl.NumberFormat("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
+const nf = (d) => new Intl.NumberFormat("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always" });
 
 function fmtValue(value, unit) {
   if (value === null || value === undefined) return "n/d";

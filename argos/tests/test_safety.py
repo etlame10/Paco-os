@@ -45,10 +45,21 @@ def test_no_secrets_in_frontend(root):
 
 
 def test_frontend_only_talks_to_own_api(root):
-    js = (root / "web" / "app.js").read_text(encoding="utf-8")
-    urls = re.findall(r"https?://[^\s\"'`)]+", js)
-    assert urls == ["http://www.w3.org/2000/svg"], urls  # solo el namespace SVG, ningún servicio externo
-    assert all(u.startswith("/api/") for u in re.findall(r"fetch\(\s*[`\"']([^`\"']+)", js))
+    scripts = sorted((root / "web").glob("*.js"))
+    assert [p.name for p in scripts] == ["app.js", "backtest.js"]
+    for path in scripts:
+        js = path.read_text(encoding="utf-8")
+        urls = set(re.findall(r"https?://[^\s\"'`)]+", js))
+        assert urls <= {"http://www.w3.org/2000/svg"}, (path.name, urls)  # solo el namespace SVG
+        fetches = re.findall(r"fetch\(\s*[`\"']([^`\"']+)", js)
+        assert all(u.startswith("/api/") for u in fetches), (path.name, fetches)
+        assert "method:" not in js and "POST" not in js, path.name  # el frontend solo hace GET
+
+
+def test_backtest_ui_labels_history_not_prediction(root):
+    html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    assert "RESULTADO HISTÓRICO · NO ES UNA PREDICCIÓN" in html
+    assert 'id="bt-demo-banner"' in html
 
 
 def test_frontend_marks_simulated_data(root):

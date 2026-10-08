@@ -21,10 +21,10 @@ argos/
 │   │   └── synthesis.py interpretaciones → conclusión auditable
 │   ├── risk/            volatilidad, drawdown, VaR, escenarios
 │   ├── strategy/        contrato Strategy + señales hipotéticas + ejemplos
-│   ├── backtest/        modelos, métricas (implementadas) y contrato del motor
+│   ├── backtest/        motor (solo señales), métricas, comparación, auditoría anti look-ahead, servicio
 │   ├── explain/         capa de explicación (plantillas; futuro: LLM)
 │   ├── pipeline.py      orquestador
-│   └── api/app.py       API web (solo GET)
+│   └── api/app.py       API web (solo GET): /api/analyze, /api/backtest
 ├── web/                 interfaz
 ├── tests/
 └── data/csv/            tus CSV con datos reales (ignorados por git)
@@ -65,9 +65,9 @@ class MiEstrategia(Strategy):
 
 Las señales son **hipotéticas**: las consume el backtesting (y en el futuro el paper trading). Regla anti-sesgo: la señal del día *t* solo usa datos hasta *t* y se ejecuta en *t+1* (hay un test que lo verifica para el cruce de medias). Los indicadores se reutilizan de `analysis/technical/indicators.py`, así que una estrategia calcula exactamente lo mismo que el análisis.
 
-## Backtesting (siguiente fase)
+## Backtesting
 
-Ya existen `BacktestConfig` (capital, comisión, deslizamiento, periodo, ejecución en la apertura siguiente), `Trade`, `BacktestResult` y las métricas: rentabilidad total y anualizada, drawdown máximo, volatilidad, Sharpe, nº de operaciones, % ganadoras y beneficio/pérdida. Falta implementar `BacktestEngine.run`; `compare()` ya incluye siempre Buy & Hold como referencia. Para comparar periodos basta con variar `start`/`end` del `BacktestConfig`.
+Implementado. `DATOS → ESTRATEGIA → SEÑALES → BACKTESTER → RESULTADOS`: el `Backtester` (`backtest/engine.py`) solo recibe un DataFrame, una lista de señales y una configuración; no conoce la estrategia. `backtest/service.py` orquesta: carga los datos, genera las señales, audita que no haya look-ahead, simula estrategia y Buy & Hold con el mismo motor y compara. Ver **[BACKTESTING.md](BACKTESTING.md)**.
 
 También servirá para **validar el propio ARGOS**: guardar cada análisis con su fecha y comprobar después si sus conclusiones acertaron más que el azar.
 
