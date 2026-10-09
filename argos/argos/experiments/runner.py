@@ -121,6 +121,15 @@ def _criterion(rows: list[PeriodRow], name: str, text: str, pred, needed: int, m
     return CriterionResult(name=name, text=text, count=count, total=len(evaluable), needed=needed, met=count >= needed)
 
 
+#: Experimentos que este ejecutor sabe evaluar. Sus criterios (cruce de medias, "3 de 4 activos") son los de
+#: EXP-001; cualquier otro protocolo necesita su propio ejecutor y aquí se rechaza antes de tocar datos o registro.
+SUPPORTED_EXPERIMENTS = ("EXP-001",)
+
+
+class UnsupportedExperimentError(ValueError):
+    pass
+
+
 def run_experiment(
     experiment_id: str,
     *,
@@ -130,6 +139,10 @@ def run_experiment(
     protocol_dir: Path | None = None,
     ticker_map: dict[str, str] | None = None,
 ) -> ExperimentResult:
+    if experiment_id not in SUPPORTED_EXPERIMENTS:
+        raise UnsupportedExperimentError(
+            f"{experiment_id} no se ejecuta con este ejecutor, que aplica las reglas y criterios de EXP-001. "
+            "Necesita su propio ejecutor, que todavía no existe. No se ha leído ningún dato ni escrito nada en el registro.")
     protocol, sha, _ = load_protocol(experiment_id, protocol_dir)
     registry = registry or ExperimentRegistry()
     if not dry_run:

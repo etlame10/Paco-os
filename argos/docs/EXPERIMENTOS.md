@@ -33,4 +33,4 @@ Se puede consultar en la pestaña Backtest de la interfaz (sección «Registro d
 | Id | Pregunta | Estado |
 | --- | --- | --- |
 | EXP-001 | ¿Aporta el cruce 50/200 algo frente a Buy & Hold en datos reales? | Pre-registrado. **Pendiente de datos reales.** |
-| EXP-002 | ¿Reduce GEM (dual momentum) las caídas frente a SPY sin rendir menos que una 60/40, con 100 de capital y comisión mínima de 1? | **Diseño en borrador, sin registrar.** Ver [EXP-002_DISENO.md](EXP-002_DISENO.md) y [EXP-002_INVESTIGACION.md](EXP-002_INVESTIGACION.md). |
+| EXP-002 | ¿Reduce GEM (dual momentum) las caídas frente a SPY sin rendir menos que una 30/30/40, con 100 USD de capital y 1 USD por orden? | **Pre-registrado** (commit `e2451bb`, huella en `LOCKS.json`). Sin datos ni ejecutor todavía. Ver [EXP-002_DISENO.md](EXP-002_DISENO.md). |

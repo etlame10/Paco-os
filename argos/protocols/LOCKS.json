@@ -3,5 +3,9 @@
   "EXP-001": {
     "sha256": "7f553e110fff59245a96504bdd0107b179550164eaf3800cbe8664f34cc98cce",
     "preregistration_commit": "6b230de"
+  },
+  "EXP-002": {
+    "sha256": "bd9f206d6df94ccb103873e9f63daceca2c76ded8f42b4a0c8e978bce7759d11",
+    "preregistration_commit": "e2451bb"
   }
 }

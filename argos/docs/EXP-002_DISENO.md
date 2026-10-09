@@ -1,8 +1,22 @@
 # EXP-002: diseño (fase 3, borrador final v3)
 
-> **Estado: BORRADOR v3 (final propuesto), pendiente de autorización explícita.** Protocolo propuesto:
-> [`borradores/EXP-002.json`](borradores/EXP-002.json). **No** está en `protocols/` ni en `LOCKS.json`. No se ha
-> descargado ningún dato, no hay código nuevo, no se ha ejecutado EXP-002 y EXP-001 no se ha tocado.
+> **Estado: PRE-REGISTRADO** el 2026-10-09 con autorización explícita del usuario. El protocolo definitivo es
+> [`../protocols/EXP-002.json`](../protocols/EXP-002.json), copia byte a byte del borrador v3
+> [`borradores/EXP-002.json`](borradores/EXP-002.json). Commit de pre-registro `e2451bb`; SHA-256
+> `bd9f206d6df94ccb103873e9f63daceca2c76ded8f42b4a0c8e978bce7759d11`, en `LOCKS.json`. No se ha descargado ningún
+> dato y no se ha ejecutado EXP-002. EXP-001 no se ha tocado.
+>
+> El campo `status_note` del protocolo todavía dice "BORRADOR v3": se copió sin cambios, como exige el registro.
+> Su estado real es este.
+
+## Condiciones del registro (autorización del usuario)
+
+1. La regla principal de GEM **no se ha verificado directamente en el libro** (§1). S1 se mantiene como variante
+   independiente. La regla principal no se cambia después de observar resultados.
+2. Las fracciones de participación son un **supuesto exclusivo de la simulación**. No se afirma que un broker
+   concreto las permita.
+3. El seguimiento prospectivo queda pendiente y no era requisito para registrar.
+4. El registro no autoriza a descargar datos, ejecutar el backtest ni conectar ARGOS a ningún broker.
 > Antecedentes y fuentes: [EXP-002_INVESTIGACION.md](EXP-002_INVESTIGACION.md).
 
 Leyenda: **[CONFIRMADO]** = visto en una fuente del autor (aunque sea a través de extractos de búsqueda);
@@ -252,4 +266,6 @@ los precios. **No hay costes de rebalanceo porque no hay rebalanceo.** Total: 6 
 
 `argos/backtest/portfolio.py` (pesos objetivo, varios activos, comisión mínima, calendario común estricto),
 `argos/strategy/gem.py` (con auditoría de truncamiento), métricas en exceso y bootstrap,
-`argos/experiments/exp002.py` (`runner.py` de EXP-001 no se toca) y tests sintéticos calculados a mano.
+`argos/experiments/exp002.py`. En `runner.py` (EXP-001) solo se ha añadido, al registrar, un control que rechaza
+cualquier experimento distinto de EXP-001 antes de leer datos o escribir en el registro. Así se evita que EXP-002 se
+ejecute por error con las reglas de EXP-001; el comportamiento con EXP-001 no cambia y tests sintéticos calculados a mano.
