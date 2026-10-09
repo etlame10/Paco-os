@@ -65,8 +65,7 @@ def test_demo_data_ends_in_the_past_not_live():
 
 def test_csv_provider_reads_real_file(tmp_path):
     (tmp_path / "TEST.csv").write_text(
-        "Date,Open,High,Low,Close,Volume\n2024-01-02,10,11,9,10.5,100\n2024-01-03,10.5,12,10,11,200\n"
-    )
+        "Date,Open,High,Low,Close,Volume\n2024-01-02,10,11,9,10.5,100\n2024-01-03,10.5,12,10,11,200\n", encoding="utf-8")
     p = CsvProvider(tmp_path)
     assert p.supports("TEST") and not p.supports("OTHER")
     assert p.list_tickers() == ["TEST"]
@@ -76,13 +75,13 @@ def test_csv_provider_reads_real_file(tmp_path):
 
 
 def test_csv_provider_rejects_bad_columns(tmp_path):
-    (tmp_path / "BAD.csv").write_text("date,close\n2024-01-02,10\n")
+    (tmp_path / "BAD.csv").write_text("date,close\n2024-01-02,10\n", encoding="utf-8")
     with pytest.raises(DataProviderError):
         CsvProvider(tmp_path).get_price_history("BAD")
 
 
 def test_registry_resolution_order_and_honest_error(tmp_path):
-    (tmp_path / "DEMO-ALCISTA.csv").write_text("date,open,high,low,close,volume\n2024-01-02,1,1,1,1,1\n")
+    (tmp_path / "DEMO-ALCISTA.csv").write_text("date,open,high,low,close,volume\n2024-01-02,1,1,1,1,1\n", encoding="utf-8")
     reg = ProviderRegistry([CsvProvider(tmp_path), DemoProvider()])
     assert reg.resolve("DEMO-ALCISTA").name == "csv"  # el primero registrado gana
     with pytest.raises(TickerNotFoundError) as exc:

@@ -75,9 +75,16 @@ def check_preregistered(experiment_id: str, sha: str, directory: Path | None = N
     if not lock:
         raise ProtocolChangedError(f"{experiment_id} no figura en {locks_path.name}: no está pre-registrado.")
     if lock["sha256"] != sha:
+        hint = ""
+        proto = (directory or PROTOCOLS_DIR) / f"{experiment_id}.json"
+        if proto.is_file() and hashlib.sha256(proto.read_bytes().replace(b"\r\n", b"\n")).hexdigest() == lock["sha256"]:
+            # El contenido es el pre-registrado salvo los saltos de línea: se sigue rechazando, pero se explica.
+            hint = (" El contenido coincide salvo los SALTOS DE LÍNEA (Git en Windows los convirtió a CRLF). "
+                    "Restaura el fichero exacto: borra protocols\\EXP-001.json y ejecuta `git checkout -- protocols`.")
         raise ProtocolChangedError(
             f"El protocolo {experiment_id} no coincide con el pre-registrado (commit {lock.get('preregistration_commit')}): "
             f"huella {sha[:12]}… ≠ {lock['sha256'][:12]}…. No se ejecuta. Si quieres cambiarlo, crea un experimento nuevo."
+            + hint
         )
 
 

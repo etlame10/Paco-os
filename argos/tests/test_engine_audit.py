@@ -180,12 +180,12 @@ def test_reserved_holdout_data_does_not_change_results(tmp_path):
         folder.mkdir()
         mapping = write_demo_dataset(protocol, folder)
         for real, demo in mapping.items():  # nombres "reales" solo dentro del test (datos sintéticos)
-            lines = (folder / f"{demo}.csv").read_text().splitlines()
+            lines = (folder / f"{demo}.csv").read_text(encoding="utf-8").splitlines()
             if extend:
                 last = lines[-1].split(",")
                 for d in pd.bdate_range("2026-01-02", "2026-03-31"):
                     lines.append(",".join([d.date().isoformat(), *last[1:]]))
-            (folder / f"{real}.csv").write_text("\n".join(lines) + "\n")
+            (folder / f"{real}.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
             (folder / f"{demo}.csv").unlink()
             (folder / f"{demo}.source.txt").rename(folder / f"{real}.source.txt")
         return folder

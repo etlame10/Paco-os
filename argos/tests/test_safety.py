@@ -30,7 +30,7 @@ def test_no_broker_libraries_or_order_code(root):
         src = path.read_text(encoding="utf-8")
         assert not lib_re.search(src), f"{path} importa una librería de broker"
         assert not order_re.search(src), f"{path} define una función de órdenes"
-    reqs = (root / "requirements.txt").read_text().lower()
+    reqs = (root / "requirements.txt").read_text(encoding="utf-8").lower()
     for lib in BROKER_LIBS:
         assert lib.lower() not in reqs
 

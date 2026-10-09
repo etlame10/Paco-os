@@ -162,10 +162,10 @@ def test_check_cli_exit_codes(tmp_path, capsys):
     assert main(["--dir", str(tmp_path), "SPY"]) == 1  # falta el fichero
     lines = ["date,open,high,low,close,volume"] + [
         f"{b.date},{b.open},{b.high},{b.low},{b.close},{b.volume}" for b in series()]
-    (tmp_path / "OKAY.csv").write_text("\n".join(lines) + "\n")
+    (tmp_path / "OKAY.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert main(["--dir", str(tmp_path), "OKAY"]) == 0
     assert "NO DOCUMENTADA" in capsys.readouterr().out
     split = scaled(series(), 1000, 0.5)
     (tmp_path / "SPLIT.csv").write_text("\n".join(
-        ["date,open,high,low,close,volume"] + [f"{b.date},{b.open},{b.high},{b.low},{b.close},{b.volume}" for b in split]) + "\n")
+        ["date,open,high,low,close,volume"] + [f"{b.date},{b.open},{b.high},{b.low},{b.close},{b.volume}" for b in split]) + "\n", encoding="utf-8")
     assert main(["--dir", str(tmp_path), "SPLIT"]) == 1

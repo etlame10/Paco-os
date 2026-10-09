@@ -123,7 +123,7 @@ def test_insufficient_history_for_strategy(tmp_path):
     lines = ["date,open,high,low,close,volume"]
     bars = DemoProvider().get_price_history("DEMO-LATERAL").bars[:150]
     lines += [f"{b.date},{b.open},{b.high},{b.low},{b.close},{b.volume}" for b in bars]
-    (tmp_path / "CORTO.csv").write_text("\n".join(lines) + "\n")
+    (tmp_path / "CORTO.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
     svc = BacktestService(registry=ProviderRegistry([CsvProvider(tmp_path)]))
     with pytest.raises(InsufficientDataError, match="necesita 201 sesiones"):
         svc.run("CORTO", "sma_crossover", {}, BacktestConfig())

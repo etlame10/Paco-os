@@ -65,9 +65,9 @@ def test_protocol_lock_refuses_changed_protocol(lab):
     assert len(res.rows) == 12 and not res.dry_run
     # Alguien "retoca" el protocolo después de ver resultados → debe negarse.
     p = pdir / "EXP-001.json"
-    doc = json.loads(p.read_text())
+    doc = json.loads(p.read_text(encoding="utf-8"))
     doc["strategy"]["params"]["fast"] = 40
-    p.write_text(json.dumps(doc))
+    p.write_text(json.dumps(doc), encoding="utf-8")
     with pytest.raises(ProtocolChangedError):
         run_experiment("EXP-001", data_dir=data, registry=reg, protocol_dir=pdir)
 
@@ -98,14 +98,14 @@ def test_missing_and_blocked_assets_are_reported_not_hidden(lab):
     pdir, data, reg = lab
     (data / "KO.csv").unlink()
     # AAPL con un split 2:1 sin ajustar a mitad de la serie
-    lines = (data / "AAPL.csv").read_text().splitlines()
+    lines = (data / "AAPL.csv").read_text(encoding="utf-8").splitlines()
     head, rows = lines[0], lines[1:]
     fixed = rows[:2000]
     for row in rows[2000:]:
         d, *vals = row.split(",")
         o, h, l, c = (float(v) / 2 for v in vals[:4])
         fixed.append(f"{d},{o},{h},{l},{c},{vals[4]}")
-    (data / "AAPL.csv").write_text("\n".join([head, *fixed]) + "\n")
+    (data / "AAPL.csv").write_text("\n".join([head, *fixed]) + "\n", encoding="utf-8")
     res = run_experiment("EXP-001", data_dir=data, registry=reg, protocol_dir=pdir)
     status = {a.ticker: a.status for a in res.assets}
     assert status["KO"] == "sin datos" and status["AAPL"] == "bloqueado por calidad"
@@ -138,9 +138,9 @@ def test_registry_is_append_only(tmp_path):
     svc = BacktestService(registry=ProviderRegistry([DemoProvider()]))
     rep = svc.run("DEMO-LATERAL", "sma_crossover", {}, BacktestConfig())
     a = reg.record(rep)
-    first_line = reg.path.read_text().splitlines()[0]
+    first_line = reg.path.read_text(encoding="utf-8").splitlines()[0]
     b = reg.record(rep)
-    lines = reg.path.read_text().splitlines()
+    lines = reg.path.read_text(encoding="utf-8").splitlines()
     assert lines[0] == first_line and len(lines) == 2 and a.record_id != b.record_id
     assert a.dry_run is True  # datos simulados → siempre ensayo
 
@@ -243,20 +243,20 @@ def test_comparison_verdicts_never_say_it_works():
 def test_adjust_csv_applies_factor_to_all_prices(tmp_path):
     src = tmp_path / "in.csv"
     src.write_text("Date,Open,High,Low,Close,Adj Close,Volume\n2024-01-02,100,110,90,100,50,1000\n"
-                   "2024-01-03,100,104,98,102,102,2000\n")
+                   "2024-01-03,100,104,98,102,102,2000\n", encoding="utf-8")
     dst = tmp_path / "out" / "KO.csv"
     assert adjust(src, dst) == 2
-    lines = dst.read_text().splitlines()
+    lines = dst.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "date,open,high,low,close,volume"
     assert lines[1] == "2024-01-02,50.000000,55.000000,45.000000,50.000000,1000"
     assert lines[2] == "2024-01-03,100.000000,104.000000,98.000000,102.000000,2000"
-    assert "Adj Close / Close" in dst.with_suffix(".source.txt").read_text()
+    assert "Adj Close / Close" in dst.with_suffix(".source.txt").read_text(encoding="utf-8")
     assert len(CsvProvider(dst.parent).get_price_history("KO").bars) == 2
 
 
 def test_adjust_csv_refuses_incomplete_rows(tmp_path):
     src = tmp_path / "in.csv"
-    src.write_text("Date,Open,High,Low,Close,Adj Close,Volume\n2024-01-02,null,110,90,100,50,1000\n")
+    src.write_text("Date,Open,High,Low,Close,Adj Close,Volume\n2024-01-02,null,110,90,100,50,1000\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="línea 2"):
         adjust(src, tmp_path / "o.csv")
 
@@ -267,7 +267,7 @@ def test_preregistration_lock_protects_before_first_real_run(lab):
 
     pdir, data, reg = lab
     p = pdir / "EXP-001.json"
-    p.write_text(p.read_text().replace('"fast": 50', '"fast": 45'))
+    p.write_text(p.read_text(encoding="utf-8").replace('"fast": 50', '"fast": 45'), encoding="utf-8")
     assert reg.list() == []
     with pytest.raises(ProtocolChangedError, match="no coincide con el pre-registrado"):
         run_experiment("EXP-001", data_dir=data, registry=reg, protocol_dir=pdir)
@@ -276,14 +276,35 @@ def test_preregistration_lock_protects_before_first_real_run(lab):
     with pytest.raises(ProtocolChangedError, match="Falta LOCKS.json"):
         check_preregistered("EXP-001", "x" * 64, pdir)
     with pytest.raises(ProtocolChangedError, match="no figura"):
-        (pdir / "LOCKS.json").write_text("{}")
+        (pdir / "LOCKS.json").write_text("{}", encoding="utf-8")
         check_preregistered("EXP-001", "x" * 64, pdir)
 
 
 def test_locks_file_matches_committed_protocol(root):
     import hashlib
 
-    locks = json.loads((root / "protocols" / "LOCKS.json").read_text())
+    locks = json.loads((root / "protocols" / "LOCKS.json").read_text(encoding="utf-8"))
     actual = hashlib.sha256((root / "protocols" / "EXP-001.json").read_bytes()).hexdigest()
     assert locks["EXP-001"]["sha256"] == actual == "7f553e110fff59245a96504bdd0107b179550164eaf3800cbe8664f34cc98cce"
     assert locks["EXP-001"]["preregistration_commit"] == "6b230de"
+
+
+def test_crlf_protocol_is_refused_with_clear_explanation(lab):
+    """Si Git convierte los saltos de línea (Windows), la huella cambia: se rechaza, pero se explica por qué."""
+    pdir, data, reg = lab
+    p = pdir / "EXP-001.json"
+    p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))
+    with pytest.raises(ProtocolChangedError, match="SALTOS DE LÍNEA") as exc:
+        run_experiment("EXP-001", data_dir=data, registry=reg, protocol_dir=pdir)
+    assert "git checkout -- protocols" in str(exc.value)
+    assert reg.list() == []
+
+
+def test_git_keeps_protocols_byte_exact(root):
+    """.gitattributes impide que Git convierta los saltos de línea de los protocolos."""
+    import subprocess
+
+    out = subprocess.run(["git", "check-attr", "text", "protocols/EXP-001.json", "protocols/LOCKS.json"],
+                         cwd=root, capture_output=True, text=True, encoding="utf-8").stdout
+    assert out.count("text: unset") == 2, out
+    assert b"\r\n" not in (root / "protocols" / "EXP-001.json").read_bytes()

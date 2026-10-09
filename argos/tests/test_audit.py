@@ -168,10 +168,10 @@ def test_undeclared_split_is_flagged(tmp_path):
 def test_missing_session_and_holiday_row_are_flagged(tmp_path, clean):
     raw, csvd = pipeline(tmp_path, clean[1])
     p = csvd / "KO.csv"
-    lines = p.read_text().splitlines()
+    lines = p.read_text(encoding="utf-8").splitlines()
     lines = [x for x in lines if not x.startswith("2013-07-15")]  # falta una sesión real
     lines.insert(1, "2007-01-02,1,1,1,1,1")  # día de luto (no hubo sesión)
-    p.write_text("\n".join(lines) + "\n")
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     _, c = run_audit(raw, csvd)
     ex = " ".join(c["calendario"].examples)
     assert c["calendario"].status == audit.FAIL and "falta 2013-07-15" in ex and "Gerald Ford" in ex
@@ -189,7 +189,7 @@ def test_missing_session_and_holiday_row_are_flagged(tmp_path, clean):
 def test_invalid_values_are_reported(tmp_path, clean, bad_row, fragment):
     raw, csvd = pipeline(tmp_path, clean[1])
     p = csvd / "KO.csv"
-    p.write_text("\n".join(bad_row if x.startswith("2013-07-15") else x for x in p.read_text().splitlines()) + "\n")
+    p.write_text("\n".join(bad_row if x.startswith("2013-07-15") else x for x in p.read_text(encoding="utf-8").splitlines()) + "\n", encoding="utf-8")
     _, c = run_audit(raw, csvd)
     assert c["valores"].status == audit.FAIL and fragment in " ".join(c["valores"].examples)
     assert c["procedencia"].status == audit.FAIL  # además, el CSV ya no es el convertido
@@ -198,14 +198,14 @@ def test_invalid_values_are_reported(tmp_path, clean, bad_row, fragment):
 def test_duplicate_and_stale_rows(tmp_path, clean):
     raw, csvd = pipeline(tmp_path, clean[1])
     p = csvd / "KO.csv"
-    lines = p.read_text().splitlines()
+    lines = p.read_text(encoding="utf-8").splitlines()
     i = next(k for k, x in enumerate(lines) if x.startswith("2016-02-01"))
     vals = lines[i].split(",")[1:]
     for k in range(1, 6):
         d = lines[i + k].split(",")[0]
         lines[i + k] = ",".join([d, *vals])
     lines.insert(i, lines[i])  # duplicado
-    p.write_text("\n".join(lines) + "\n")
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     _, c = run_audit(raw, csvd)
     assert c["orden"].status == audit.FAIL and "2016-02-01" in c["orden"].examples
     assert c["repetidos"].status == audit.WARN
@@ -221,7 +221,7 @@ def test_truncated_history_is_flagged(tmp_path):
 def test_symbol_change_or_copied_file_is_flagged(tmp_path, clean):
     raw, csvd = pipeline(tmp_path, clean[1])
     src = csvd / "KO.source.txt"
-    src.write_text(src.read_text().replace("Ticker: KO", "Ticker: XOM"))
+    src.write_text(src.read_text(encoding="utf-8").replace("Ticker: KO", "Ticker: XOM"), encoding="utf-8")
     _, c = run_audit(raw, csvd)
     assert c["procedencia"].status == audit.FAIL and "XOM" in c["procedencia"].detail
 
@@ -236,7 +236,7 @@ def test_missing_provenance_is_flagged(tmp_path, clean):
 def test_modified_original_is_flagged(tmp_path, clean):
     raw, csvd = pipeline(tmp_path, clean[1])
     f = next(raw.glob("KO_*.csv"))
-    f.write_text(f.read_text().replace(",0.3,1.0", ",0.31,1.0", 1))
+    f.write_text(f.read_text(encoding="utf-8").replace(",0.3,1.0", ",0.31,1.0", 1), encoding="utf-8")
     _, c = run_audit(raw, csvd)
     assert c["original"].status == audit.FAIL
 
@@ -254,7 +254,7 @@ def test_cli_report_and_exit_codes(tmp_path, clean, capsys):
     raw, csvd = pipeline(tmp_path, clean[1])
     out = tmp_path / "informe.md"
     code = audit.main(["KO", "--csv-dir", str(csvd), "--raw-dir", str(raw), "--salida", str(out)])
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert code == 0 and "| Limitación |" in text and "SHA-256" in text
     assert audit.main(["SPY", "--csv-dir", str(csvd), "--raw-dir", str(raw)]) == 2  # falta el fichero
     (csvd / "KO.source.txt").unlink()
@@ -269,13 +269,13 @@ def test_edited_csv_with_forged_provenance_is_caught_by_reconversion(tmp_path, c
     raw, csvd = pipeline(tmp_path, clean[1])
     p, src = csvd / "KO.csv", csvd / "KO.source.txt"
     old_sha = hashlib.sha256(p.read_bytes()).hexdigest()
-    lines = p.read_text().splitlines()
+    lines = p.read_text(encoding="utf-8").splitlines()
     parts = lines[500].split(",")
     parts[4] = f"{float(parts[4]) * 1.01:.6f}"  # cierre +1 % (sigue siendo coherente con su máximo/mínimo)
     parts[2] = f"{max(float(parts[2]), float(parts[4])):.6f}"
     lines[500] = ",".join(parts)
-    p.write_text("\n".join(lines) + "\n")
-    src.write_text(src.read_text().replace(old_sha, hashlib.sha256(p.read_bytes()).hexdigest()))
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    src.write_text(src.read_text(encoding="utf-8").replace(old_sha, hashlib.sha256(p.read_bytes()).hexdigest()), encoding="utf-8")
     _, c = run_audit(raw, csvd)
     assert c["procedencia"].status == audit.OK  # la falsificación pasa este control…
     assert c["conversion"].status == audit.FAIL  # …pero no el de reconversión

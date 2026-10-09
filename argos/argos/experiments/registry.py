@@ -29,7 +29,7 @@ DEFAULT_PATH = ARGOS_ROOT / "data" / "experiments" / "registry.jsonl"
 def git_commit() -> str | None:
     try:
         out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ARGOS_ROOT,
-                             capture_output=True, text=True, timeout=5)
+                             capture_output=True, text=True, encoding="utf-8", timeout=5)
         return out.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         return None

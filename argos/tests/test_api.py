@@ -139,7 +139,7 @@ def test_save_and_list_experiment(client, registry_path):
     assert rec["argos_version"] and rec["recorded_at"] and rec["strategy_metrics"]["n_trades"] >= 0
     listing = client.get("/api/experiments").json()
     assert listing["count"] == before + 1 and listing["records"][0]["record_id"] == rec["record_id"]
-    assert registry_path.read_text().count("\n") == before + 1
+    assert registry_path.read_text(encoding="utf-8").count("\n") == before + 1
 
 
 def test_save_experiment_ignores_client_metrics(client):

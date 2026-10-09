@@ -83,7 +83,7 @@ def test_key_is_only_read_from_environment(tmp_path, monkeypatch):
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)
     monkeypatch.setenv("TIINGO_TOKEN", KEY)
     monkeypatch.chdir(tmp_path)
-    (tmp_path / ".env").write_text(f"TIINGO_API_KEY={KEY}\n")
+    (tmp_path / ".env").write_text(f"TIINGO_API_KEY={KEY}\n", encoding="utf-8")
     with pytest.raises(tiingo.MissingKeyError):
         tiingo.read_api_key()
 
@@ -105,7 +105,7 @@ def test_key_goes_in_header_never_in_url_or_files(tmp_path, capsys):
     assert url == ("https://api.tiingo.com/tiingo/daily/spy/prices?startDate=2007-01-01&endDate=2025-12-31"
                    "&format=csv&resampleFreq=daily")
     for f in (tmp_path / "raw").iterdir():
-        assert KEY not in f.read_text()
+        assert KEY not in f.read_text(encoding="utf-8")
     assert KEY not in rec.to_json() and KEY not in capsys.readouterr().out
 
 
@@ -271,7 +271,7 @@ def test_conversion_is_mechanical(tmp_path):
     body = tiingo_csv(date_fmt="{d}T00:00:00.000Z", split_on=date(2014, 6, 9))
     rec = download(tmp_path, FakeTiingo(body=body), "AAPL")
     res = tiingo.convert("AAPL", raw_dir=tmp_path / "raw", csv_dir=tmp_path / "csv")
-    out = (tmp_path / "csv" / "AAPL.csv").read_text().splitlines()
+    out = (tmp_path / "csv" / "AAPL.csv").read_text(encoding="utf-8").splitlines()
     src = body.splitlines()
     cols = HEADER.split(",")
     assert out[0] == "date,open,high,low,close,volume"
@@ -288,7 +288,7 @@ def test_conversion_is_mechanical(tmp_path):
 def test_source_txt_records_provenance(tmp_path):
     rec = download(tmp_path, FakeTiingo(), "KO")
     tiingo.convert("KO", raw_dir=tmp_path / "raw", csv_dir=tmp_path / "csv")
-    txt = (tmp_path / "csv" / "KO.source.txt").read_text()
+    txt = (tmp_path / "csv" / "KO.source.txt").read_text(encoding="utf-8")
     for needle in ("Tiingo", "uso personal", rec.sha256, "2026-10-08T12:00:00+00:00", "adjClose",
                    "2007-01-01 → 2025-12-31", "splits y dividendos", "Dividendos por año"):
         assert needle in txt, needle
@@ -300,7 +300,7 @@ def test_source_txt_records_provenance(tmp_path):
 def test_conversion_refuses_tampered_original(tmp_path):
     rec = download(tmp_path, FakeTiingo())
     raw = tmp_path / "raw" / rec.raw_file
-    raw.write_text(raw.read_text().replace("1000000", "1000001", 1))
+    raw.write_text(raw.read_text(encoding="utf-8").replace("1000000", "1000001", 1), encoding="utf-8")
     with pytest.raises(tiingo.RawDataError, match="ha cambiado"):
         tiingo.convert("SPY", raw_dir=tmp_path / "raw", csv_dir=tmp_path / "csv")
     assert not (tmp_path / "csv" / "SPY.csv").exists()
@@ -320,11 +320,11 @@ def test_conversion_does_not_silently_overwrite(tmp_path):
     kw = dict(raw_dir=tmp_path / "raw", csv_dir=tmp_path / "csv")
     tiingo.convert("SPY", **kw)
     tiingo.convert("SPY", **kw)  # mismo contenido: no hay problema
-    (tmp_path / "csv" / "SPY.csv").write_text("date,open,high,low,close,volume\n")
+    (tmp_path / "csv" / "SPY.csv").write_text("date,open,high,low,close,volume\n", encoding="utf-8")
     with pytest.raises(tiingo.RawDataError, match="--sobrescribir"):
         tiingo.convert("SPY", **kw)
     tiingo.convert("SPY", overwrite=True, **kw)
-    assert len((tmp_path / "csv" / "SPY.csv").read_text().splitlines()) > 4000
+    assert len((tmp_path / "csv" / "SPY.csv").read_text(encoding="utf-8").splitlines()) > 4000
 
 
 def test_full_chain_produces_valid_argos_csv(tmp_path, monkeypatch, capsys):
@@ -369,7 +369,7 @@ def test_protocol_exp001_unchanged(root):
 def test_private_data_and_keys_are_git_ignored(root):
     paths = ["data/raw/tiingo/SPY_x.csv", "data/raw/tiingo/manifest.jsonl", "data/csv/SPY.csv",
              "data/csv/SPY.source.txt", ".env", ".env.local", "tiingo.key"]
-    res = subprocess.run(["git", "check-ignore", "--no-index", *paths], cwd=root, capture_output=True, text=True)
+    res = subprocess.run(["git", "check-ignore", "--no-index", *paths], cwd=root, capture_output=True, text=True, encoding="utf-8")
     assert sorted(res.stdout.split()) == sorted(paths)
 
 
@@ -542,5 +542,5 @@ def test_no_insecure_tls_anywhere_in_source(root):
 
 
 def test_certifi_is_pinned(root):
-    reqs = (root / "requirements.txt").read_text()
+    reqs = (root / "requirements.txt").read_text(encoding="utf-8")
     assert _re.search(r"^certifi==\d{4}\.\d+\.\d+$", reqs, _re.M)
