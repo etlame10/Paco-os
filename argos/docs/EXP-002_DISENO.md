@@ -1,6 +1,6 @@
-# EXP-002: diseño (fase 3, revisión metodológica v2)
+# EXP-002: diseño (fase 3, borrador final v3)
 
-> **Estado: BORRADOR v2, pendiente de autorización explícita.** Protocolo propuesto:
+> **Estado: BORRADOR v3 (final propuesto), pendiente de autorización explícita.** Protocolo propuesto:
 > [`borradores/EXP-002.json`](borradores/EXP-002.json). **No** está en `protocols/` ni en `LOCKS.json`. No se ha
 > descargado ningún dato, no hay código nuevo, no se ha ejecutado EXP-002 y EXP-001 no se ha tocado.
 > Antecedentes y fuentes: [EXP-002_INVESTIGACION.md](EXP-002_INVESTIGACION.md).
@@ -8,7 +8,19 @@
 Leyenda: **[CONFIRMADO]** = visto en una fuente del autor (aunque sea a través de extractos de búsqueda);
 **[PENDIENTE]** = interpretación no verificada en el libro; **[DECISIÓN]** = elección de diseño nuestra.
 
-## Cambios respecto al borrador v1
+## Cambios de la v3 respecto a la v2
+
+| # | Cambio |
+| --- | --- |
+| 1 | Moneda: queda explícito que 100 USD **no** representan una inversión de 100 EUR y que las variantes de capital o de costes **no** equivalen a modelar el tipo de cambio (§2). |
+| 2 | C2 usa el CAGR neto de costes, con su justificación (§5). |
+| 3 | MaxDD: fórmula completa, fechas incluidas y momento en que cada coste entra en la curva (§5). |
+| 4 | Contabilidad de costes con una comprobación sintética: cada coste se cuenta una sola vez en las tres carteras (§3). |
+| 5 | El umbral del 0,75 se declara **exploratorio** (§5). |
+| 6 | La regla principal y S1 se presentan con la fuente de cada una (§1). |
+| 7 | Las 132 fechas mensuales son fechas de **decisión**, no operaciones, y se añade una comprobación explícita (§4). |
+
+## Cambios de la v2 respecto a la v1
 
 | # | Cambio | Motivo |
 | --- | --- | --- |
@@ -36,21 +48,29 @@ ni webs de reseñas. Lo siguiente sale de **extractos de búsqueda**, no de la l
 | Índices exactos de bonos y letras del libro y día del mes del cálculo | **[PENDIENTE]** | — |
 | Variante con el filtro sobre el activo **ganador** | Discrepancia de fuentes secundarias | Portfolio123, strategyindex.io y otras. Queda como **variante S1**, nunca como sustituto. |
 
+| | Regla | Fuente | Estado |
+| --- | --- | --- | --- |
+| **Principal** | Bonos si R(SPY) ≤ R(BIL); si no, el mayor de R(SPY) y R(VEU) | Extractos de optimalmomentum.com (orden: S&P 500 primero) y Petit 2026, SSRN 7427878 (resumen de un preprint sin revisión por pares) | **No verificada en el libro.** La incertidumbre se mantiene hasta poder comprobarla. |
+| **S1** | Bonos si max(R(SPY), R(VEU)) ≤ R(BIL) | Foro de Portfolio123, strategyindex.io y otras fuentes secundarias, ninguna del autor | Solo sensibilidad. |
+
 Las dos versiones solo difieren en un caso: VEU gana a SPY, VEU supera a las letras y SPY no. Entonces la versión
 del autor va a bonos y S1 se queda en VEU.
 
 **Recomendación:** antes de autorizar, que alguien con el libro compruebe la página donde se describe GEM. Si no es
-posible, se registra tal cual, con la limitación anotada en `source_status`.
+posible, se registra tal cual, con la limitación anotada en `source_status`. Si una verificación posterior mostrara que
+el libro usa la regla de S1, **EXP-002 no se cambia**: se documenta la desviación y, si procede, se registra EXP-003.
 
 ## 2. Moneda y capital **[DECISIÓN]**
 
-- El backtest trabaja en **USD**, la moneda de los precios: capital C0 = **100 USD** y comisión m = **1 USD por orden**.
-- **No se modela el EUR/USD.** Para un inversor en euros, el valor de todas las carteras se multiplicaría por un tipo
-  de cambio que varía cada día. Eso no altera qué activo elige GEM, pero sí la profundidad de las caídas medidas en
-  euros, y no lo hace igual en cada cartera.
-- Aproximación honesta: 1 EUR estuvo, a grandes rasgos, entre 0,95 y 1,40 USD en 2015–2025. Es una cifra de
-  conocimiento general, **no verificada con datos**. Las variantes S4 (comisión de 2), S5 (capital 50) y S6 (capital
-  200) **acotan** el caso de 100 EUR y 1 EUR, pero no lo modelan.
+- El experimento principal trabaja en **USD**, la moneda de los precios: capital C0 = **100 USD** y comisión
+  m = **1 USD por orden**.
+- **No representa exactamente una inversión de 100 EUR.** No se modela el tipo de cambio EUR/USD. Para un inversor en
+  euros, todas las carteras quedarían multiplicadas por un tipo de cambio que varía cada día. Eso no cambia qué activo
+  elige GEM, pero sí la curva de capital, la profundidad de las caídas medidas en euros y el peso relativo de una
+  comisión fija en euros.
+- Las variantes de capital (S5, S6 y S7) y de costes (S4) miden la sensibilidad al tamaño de la cuenta y al coste.
+  **No equivalen a modelar el tipo de cambio** ni lo sustituyen. Modelarlo exigiría otra serie de datos y otro
+  experimento.
 - Es solo un backtest: no hay órdenes reales ni conexión con ningún broker.
 
 ## 3. Costes: fórmulas, órdenes y coste total
@@ -79,11 +99,38 @@ razón principal por la que C2 es exigente.
 
 Si el efectivo disponible para una compra es ≤ c, el experimento se detiene y se declara inconcluso.
 
+**Compras de varios activos a la vez** (solo en la 30/30/40): presupuesto = efectivo − n·m, siendo n el número de
+compras. Cada activo recibe peso × presupuesto, y cantidad = peso × presupuesto / (Pa·(1 + s)).
+
+**Contabilidad: cada coste se cuenta una sola vez.**
+
+| Momento | GEM | SPY | 30/30/40 |
+| --- | --- | --- | --- |
+| Entrada (primera apertura del tramo) | 1 compra | 1 compra | 3 compras |
+| Decisión mensual sin cambio de objetivo | 0 órdenes | — | — |
+| Cambio de activo (apertura siguiente a la decisión) | 1 venta + 1 compra | — | — |
+| Liquidación final (cierre de la última sesión) | 1 venta | 1 venta | 3 ventas |
+| **Total de órdenes** | **2 + 2K** | **2** | **6** |
+
+- Cada orden paga exactamente **una** comisión m y **un** deslizamiento cantidad·P·s.
+- Debe cuadrar la identidad V_T = C0 + Σ resultado bruto de mercado − Σ comisiones − Σ deslizamientos.
+- Cada tramo se simula por separado, así que los costes de un tramo no pasan a otro.
+- Las decisiones cuya ejecución caería después de la última sesión no generan órdenes. En el periodo de evaluación, la
+  última decisión ejecutada es la del 2025-11-28, que se ejecuta el 2025-12-01. La del 2025-12-31 no se ejecuta.
+
+**Comprobación sintética realizada** (precios inventados, no es el backtest): una implementación mínima de estas
+fórmulas sobre 60 sesiones aleatorias da 8 órdenes para GEM con K = 3 y 5 decisiones con objetivo, 2 para SPY y 6
+para la 30/30/40. La comisión total es igual al número de órdenes y la identidad de V_T cuadra con un error menor que
+10⁻¹³ en las tres carteras. Esa comprobación se convertirá en un test permanente en la fase 5.
+
 ## 4. Fechas, señales, ejecución, dividendos y calendario
 
 - **Evaluación: 2015-01-01 → 2025-12-31** **[DECISIÓN]**. Es el primer año natural completo tras la publicación del
   libro (octubre de 2014), así que no se elige una fecha de corte a la vista de nada. Hay **132 decisiones**: de
   2014-12-31 a 2025-11-28, comprobado con el calendario NYSE de ARGOS. La primera ejecución es el 2015-01-02.
+- **Las 132 son fechas de decisión, no operaciones.** En cada una se calcula el objetivo, pero solo hay órdenes si
+  cambia. El informe dará por separado el número de decisiones (debe ser 132), el número de cambios K
+  (0 ≤ K ≤ 132) y el de órdenes de GEM (2 + 2K). Si no cuadran, el experimento es inconcluso.
 - Tramos solo descriptivos: 2008-07-01 → 2014-12-31 (primera decisión el 2008-06-30) y 2026-01-01 → 2026-09-30.
 - **Señal:** al cierre ajustado de la última sesión válida del mes. Se compara con el cierre de la última sesión
   válida del mismo mes un año antes. Una sesión es válida si está en el calendario NYSE y los cuatro activos tienen
@@ -98,12 +145,20 @@ Si el efectivo disponible para una compra es ≤ c, el experimento se detiene y 
 
 ## 5. Criterios de éxito (idénticos para GEM y referencias)
 
-Sobre la curva diaria **V_t**, que vale V_0 = C0 justo antes de la primera apertura del tramo:
+**Puntos de la curva** (los mismos para las tres carteras):
+
+- t = 0: V_0 = C0, efectivo justo antes de la primera apertura del tramo.
+- t = 1 … T−1: cierre de cada sesión válida, **después** de las ejecuciones de esa apertura:
+  V_t = efectivo_t + Σ_i cantidad_i · Pc_i(t). Las comisiones y el deslizamiento de esas órdenes ya se han
+  descontado del efectivo.
+- t = T: última sesión válida del tramo; V_T es el efectivo tras liquidar al cierre con costes.
+- No se valoran aperturas ni precios intradía.
 
 ```
-V_t    = efectivo_t + Σ_i cantidad_i · Pc_i(t)       (cierre de cada sesión; V_final ya liquidado con costes)
-MaxDD  = max_t ( 1 − V_t / max_{u≤t} V_u )           (t ∈ {0} ∪ sesiones del tramo)
-CAGR   = (V_final / C0)^(365,25 / D) − 1             (D = días naturales entre la primera y la última sesión)
+Pico_t = max(V_0, …, V_t)
+DD_t   = 1 − V_t / Pico_t                        (DD_0 = 0)
+MaxDD  = max(DD_0, …, DD_T)                      (fracción positiva)
+CAGR   = (V_T / C0)^(365,25 / D) − 1             (D = días naturales entre la primera y la última sesión)
 
 C1:  MaxDD(GEM) ≤ 0,75 · MaxDD(SPY comprar y mantener)
 C2:  CAGR(GEM)  ≥ CAGR(30/30/40)
@@ -112,12 +167,20 @@ C2:  CAGR(GEM)  ≥ CAGR(30/30/40)
 Mismo motor, mismas sesiones, mismos precios, mismos costes y mismas métricas para las tres carteras. Solo cambian
 los pesos objetivo. Se compara sin redondear.
 
+- **Por qué el CAGR neto en C2:** mide cuánto crece el capital después de pagar todo y es comparable entre carteras
+  con distinto número de órdenes. La rentabilidad total dependería de la longitud del tramo, y el Sharpe ya es una
+  métrica secundaria.
+- **El umbral 0,75 de C1 es exploratorio.** Se eligió antes de calcular nada, pero conociendo a grandes rasgos el
+  periodo (caídas del S&P 500 en 2020 y 2022, y bonos a la baja en 2022). **No es un umbral independiente ni
+  validado estadísticamente.** El informe dará siempre la razón MaxDD(GEM)/MaxDD(SPY) exacta, además de si cumple o
+  no el 0,75.
+
 | Veredicto | Condición |
 | --- | --- |
 | Mejora robusta | C1 y C2; IC 95% de ΔCAGR(GEM − 30/30/40) entero por encima de 0; y C1 y C2 también con costes ×2 (S4) |
 | Indicio no concluyente | C1 y C2, sin el resto |
 | No se ha demostrado mejora | Falla C1 o C2 |
-| Inconcluso | Datos bloqueados, sesión ausente, menos de 132 decisiones, fallo de la auditoría anti look-ahead, falta de efectivo o necesidad de desviarse del protocolo |
+| Inconcluso | Datos bloqueados, sesión ausente, número de decisiones distinto de 132 o contabilidad que no cuadra, fallo de la auditoría anti look-ahead, falta de efectivo o necesidad de desviarse del protocolo |
 
 **Secundarias** (se informan, no deciden): Sharpe en exceso sobre BIL, calculado como media(e)/desv(e)·√252 con
 e_t = r_t − r_BIL,t; Sortino con la semidesviación de e; CAGR frente a SPY; volatilidad; peor año; K; costes; tiempo
