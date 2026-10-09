@@ -33,3 +33,4 @@ Se puede consultar en la pestaña Backtest de la interfaz (sección «Registro d
 | Id | Pregunta | Estado |
 | --- | --- | --- |
 | EXP-001 | ¿Aporta el cruce 50/200 algo frente a Buy & Hold en datos reales? | Pre-registrado. **Pendiente de datos reales.** |
+| EXP-002 | ¿Reducen caídas las estrategias publicadas (dual momentum, filtro de 10 meses) con capital bajo y costes reales? | **En investigación: sin protocolo.** Ver [EXP-002_INVESTIGACION.md](EXP-002_INVESTIGACION.md). |
