@@ -2,74 +2,106 @@
   "id": "EXP-002",
   "title": "Dual momentum (GEM) con capital bajo y comisión mínima frente a referencias pasivas",
   "registered_at": "2026-10-09",
-  "status_note": "BORRADOR pendiente de aprobación. No está en protocols/ ni en LOCKS.json. La fecha definitiva será la del commit de registro. Cuando se registre, este fichero se copia sin cambios a protocols/EXP-002.json y deja de editarse.",
+  "status_note": "BORRADOR v2, pendiente de autorización. No está en protocols/ ni en LOCKS.json. Al registrarlo se copia sin cambios a protocols/EXP-002.json, con registered_at igual a la fecha del commit de registro, y deja de editarse.",
   "hypothesis": {
-    "H0": "Con 100 unidades de capital, comisión mínima de 1 por orden y ejecución en la apertura siguiente, GEM no reduce la caída máxima frente a SPY o no consigue rentabilidad anual compuesta neta al menos igual a la de una cartera pasiva 60/40 con los mismos activos.",
-    "H1": "En el periodo de evaluación 2014-2025, GEM tiene una caída máxima menor o igual al 75% de la de SPY Y una rentabilidad anual compuesta neta mayor o igual que la de la cartera pasiva 60/40.",
-    "secondary_1": "Sharpe en exceso sobre BIL: GEM mayor o igual que SPY.",
-    "secondary_2": "Sharpe en exceso sobre BIL: GEM mayor o igual que la 60/40.",
-    "secondary_3": "Rentabilidad anual compuesta neta: GEM mayor o igual que SPY.",
-    "prior_note": "Replicaciones de terceros (Petit 2026, Price Action Lab 2023, Quant for Free) indican que GEM rindió menos que el S&P 500 después de 2010-2014. Es esperable que secondary_3 no se cumpla. El experimento verifica esos indicios con costes de capital bajo; no descubre nada nuevo."
+    "H0": "En el periodo de evaluación, GEM no cumple C1 o no cumple C2 (ver success_criteria).",
+    "H1": "En el periodo de evaluación, GEM cumple C1 (caída máxima <= 0,75 × la de SPY) y C2 (CAGR neto >= el de la cartera pasiva 30/30/40).",
+    "secondary_1": "Sharpe en exceso sobre BIL: GEM >= SPY.",
+    "secondary_2": "Sharpe en exceso sobre BIL: GEM >= 30/30/40.",
+    "secondary_3": "CAGR neto: GEM >= SPY.",
+    "prior_note": "Escrito antes de ver datos: replicaciones de terceros (Petit 2026, Price Action Lab 2023, Quant for Free) indican que GEM rindió menos que el S&P 500 después de 2010-2014. Es esperable que secondary_3 no se cumpla."
   },
   "strategy": {
     "name": "gem",
-    "source": "Antonacci, Dual Momentum Investing (McGraw-Hill, 2014); SSRN 2042750. La versión del filtro absoluto sigue a Petit (SSRN 7427878): se compara el S&P 500 con las letras del Tesoro.",
     "params": {"lookback_months": 12},
+    "source_status": {
+      "confirmado_en_fuente_del_autor": "Según extractos de búsqueda de optimalmomentum.com (no leídos completos): primero se mira la tendencia del S&P 500 (momentum absoluto); si es bajista, bonos; si es alcista, se elige entre S&P 500 y MSCI ACWI ex-US según su rentabilidad de 12 meses; ventana de 12 meses en ambos pasos; rebalanceo mensual. GEM se creó en 2013 y se publicó en el libro Dual Momentum Investing (McGraw-Hill; octubre de 2014 según OverDrive y Amazon).",
+      "pendiente_de_verificar": "Que 'tendencia del S&P 500' significa rentabilidad de 12 meses mayor que la de las letras del Tesoro y no mayor que 0 (lo apoyan el artículo SSRN 2042750, que usa las letras como umbral, y Petit 2026, pero no se ha leído en el libro). El índice exacto de bonos y letras del libro. El día exacto de cálculo y de ejecución que usa el autor.",
+      "discrepancia_conocida": "Varias fuentes secundarias aplican el filtro absoluto al activo ganador y no al S&P 500. Se registra como variante S1, nunca como sustituto."
+    },
     "rule": [
-      "Día de decisión: última sesión NYSE de cada mes, con precios de cierre ajustados.",
-      "R(X) = cierre_ajustado(X, día de decisión) / cierre_ajustado(X, última sesión del mes 12 meses antes) - 1.",
-      "Si R(SPY) <= R(BIL): objetivo = AGG.",
-      "Si no, y si R(SPY) >= R(VEU): objetivo = SPY.",
-      "Si no: objetivo = VEU.",
-      "Empate exacto R(SPY) = R(BIL): se trata como 'no supera' y va a AGG. Empate R(SPY) = R(VEU): SPY."
+      "Sesiones válidas: las sesiones NYSE con barra en los cuatro activos (SPY, VEU, AGG, BIL).",
+      "Día de decisión d(m): última sesión válida del mes natural m.",
+      "R_X(m) = Pc_X(d(m)) / Pc_X(d(m-12)) - 1, donde Pc es el cierre ajustado por splits y dividendos.",
+      "Si R_SPY(m) > R_BIL(m) y R_SPY(m) >= R_VEU(m): objetivo(m) = SPY.",
+      "Si R_SPY(m) > R_BIL(m) y R_SPY(m) < R_VEU(m): objetivo(m) = VEU.",
+      "Si R_SPY(m) <= R_BIL(m): objetivo(m) = AGG.",
+      "Se comparan valores sin redondear."
     ],
-    "execution": "Si el objetivo cambia, se vende la posición entera y se compra el objetivo con todo el efectivo, ambas a la APERTURA de la sesión siguiente al día de decisión. Si no cambia, no hay orden. Siempre hay un único activo al 100%.",
-    "fractional_shares": true,
-    "fractional_note": "Supuesto necesario: con 100 de capital no se puede comprar una participación entera de la mayoría de estos ETF. Si el broker real no admite fracciones, la estrategia no es aplicable tal cual."
+    "execution": [
+      "La decisión de d(m) se ejecuta en la APERTURA ajustada de la primera sesión válida posterior a d(m).",
+      "Si objetivo(m) es igual al activo en cartera, no hay orden.",
+      "Si cambia: primero se vende la posición entera y luego se compra el nuevo activo con todo el efectivo, en la misma apertura.",
+      "Siempre hay un único activo al 100% (más un efectivo residual de cero o casi cero tras los costes)."
+    ],
+    "dividends": "Con precios ajustados, los dividendos se reinvierten implícitamente en la fecha ex, sin comisión, como en un fondo de acumulación. No se modelan dividendos en efectivo ni su reinversión con coste.",
+    "fractional_shares": "Se permiten fracciones de participación. Es imprescindible con este capital; si el broker real no lo permite, la estrategia no es aplicable tal cual."
   },
   "costs": {
+    "currency": "USD",
     "initial_capital": 100,
-    "currency_note": "Unidades monetarias nominales sobre precios en USD. No se modela el cambio EUR/USD.",
     "commission_min_per_order": 1.0,
     "commission_pct": 0.0,
-    "commission_rule": "comisión por orden = max(commission_min_per_order, commission_pct * importe)",
     "slippage_pct": 0.0005,
+    "formulas": {
+      "comision_por_orden": "c = max(m, p × importe), con m = 1 y p = 0, es decir c = 1 por orden.",
+      "compra": "cantidad = (efectivo_asignado - c) / (Pa × (1 + s)), con Pa = apertura ajustada.",
+      "venta": "ingreso = cantidad × Pa × (1 - s) - c.",
+      "liquidacion_final": "Al CIERRE ajustado de la última sesión del periodo: ingreso = cantidad × Pc × (1 - s) - c por posición.",
+      "deslizamiento_registrado": "cantidad × P × s en cada orden. Coste total = comisiones + deslizamiento."
+    },
+    "orders": {
+      "gem": "1 compra inicial + 2 órdenes por cambio de activo + 1 venta final. Comisión total = m × (2 + 2K), con K = número de cambios.",
+      "spy_buy_hold": "1 compra + 1 venta. Comisión total = 2m.",
+      "pasiva_30_30_40": "3 compras + 3 ventas. Comisión total = 6m. Sin rebalanceo, así que no hay más órdenes."
+    },
+    "double_cost_scenario": "Variante S4: m = 2 y s = 0,0010. GEM paga 2 × (2 + 2K) de comisión, SPY 4 y la 30/30/40 12.",
+    "insufficient_cash_rule": "Si en algún momento el efectivo disponible para una compra es <= c, el experimento se detiene y se declara inconcluso. Nunca se fuerza la orden.",
+    "currency_note": "El capital y las comisiones se expresan en USD, la moneda de los precios. No se modela el EUR/USD: un inversor en euros tendría además el riesgo de cambio, que altera la curva de capital y las caídas de forma distinta a la estrategia. Las variantes S4 (comisión de 2), S5 (capital 50) y S6 (capital 200) acotan aproximadamente el caso de 100 EUR y 1 EUR por orden, aunque no lo modelan.",
     "taxes": "No se modelan."
   },
   "assets": [
-    {"ticker": "SPY", "role": "renta variable EE. UU.", "description": "SPDR S&P 500 ETF Trust. Sustituto del índice S&P 500.", "core": true},
-    {"ticker": "VEU", "role": "renta variable fuera de EE. UU.", "description": "Vanguard FTSE All-World ex-US ETF (inicio 2007-03-02). Sustituto del MSCI ACWI ex-US: índice distinto pero con cobertura similar. Se elige frente a ACWX por tener un año más de historia.", "core": true},
-    {"ticker": "AGG", "role": "refugio en bonos", "description": "iShares Core U.S. Aggregate Bond ETF. Sustituto del Barclays/Bloomberg US Aggregate.", "core": true},
-    {"ticker": "BIL", "role": "umbral de momentum absoluto y tasa libre de riesgo", "description": "SPDR Bloomberg 1-3 Month T-Bill ETF (inicio 2007-05-25). Nunca se compra en GEM.", "core": true}
+    {"ticker": "SPY", "role": "renta variable EE. UU.", "description": "SPDR S&P 500 ETF Trust. Sustituto del S&P 500 del libro.", "core": true},
+    {"ticker": "VEU", "role": "renta variable fuera de EE. UU.", "description": "Vanguard FTSE All-World ex-US ETF (inicio 2007-03-02). Sustituto del MSCI ACWI ex-US: índice distinto, cobertura similar.", "core": true},
+    {"ticker": "AGG", "role": "refugio en bonos", "description": "iShares Core U.S. Aggregate Bond ETF. Sustituto del índice de bonos agregados de EE. UU.", "core": true},
+    {"ticker": "BIL", "role": "umbral de momentum absoluto y tasa libre de riesgo", "description": "SPDR Bloomberg 1-3 Month T-Bill ETF (inicio 2007-05-25). Nunca se compra.", "core": true}
   ],
   "data_requirements": {
     "frequency": "diaria",
     "required_start": "2007-06-01",
     "required_end": "2026-09-30",
     "max_start_tolerance_days": 10,
-    "price_adjustment": "OHLC ajustados por splits y dividendos (campos adj* de Tiingo, ajuste multiplicativo hacia atrás).",
     "min_years": 18,
-    "calendar_rule": "Se usan solo las sesiones presentes en los cuatro activos. Si alguna sesión NYSE falta en algún activo dentro del periodo, el experimento se detiene y se informa; no se rellena."
+    "price_adjustment": "Campos adj* de Tiingo (ajuste multiplicativo hacia atrás por splits y dividendos). Señales, ejecución y valoración usan los mismos precios ajustados.",
+    "calendar_rule": "Calendario NYSE de argos/data/calendar_us.py. Si dentro de 2007-06-01..2026-09-30 falta en algún activo una sesión NYSE esperada, el experimento se detiene y se informa. Nunca se rellena ni se interpola.",
+    "storage": "Los CSV convertidos de EXP-002 se guardan en data/csv/EXP-002/ y nunca en data/csv/, que es la carpeta de EXP-001. Los originales van a data/raw/tiingo/ como ficheros nuevos con su marca de tiempo (los originales nunca se sobrescriben) y el manifiesto solo crece. Los resultados y el registro van a data/experiments/EXP-002/."
   },
   "periods": [
-    {"name": "previo_publicacion", "start": "2008-07-01", "end": "2013-12-31", "note": "Solo descriptivo. Coincide con la muestra del propio autor (1974-2013), así que no es fuera de muestra. Primera decisión: 2008-06-30, la primera fecha con 12 meses de historia de BIL."},
-    {"name": "evaluacion", "start": "2014-01-01", "end": "2025-12-31", "note": "Periodo de los criterios. Es posterior al libro (2014). NO es virgen para el investigador: el mercado de esos años es conocido, EXP-001 ya miró SPY y hay replicaciones de terceros publicadas."},
-    {"name": "2026_parcial", "start": "2026-01-01", "end": "2026-09-30", "note": "Era la reserva de EXP-001 y ya ha transcurrido. Solo descriptivo, con menos de 10 decisiones."}
+    {"name": "previo_publicacion", "start": "2008-07-01", "end": "2014-12-31", "note": "Solo descriptivo. Primera decisión el 2008-06-30, la primera con 12 meses de historia de BIL. Se solapa con la muestra del autor (1974-2013) y con el año de publicación."},
+    {"name": "evaluacion", "start": "2015-01-01", "end": "2025-12-31", "note": "Periodo de los criterios. Primer año natural completo tras la publicación del libro (octubre de 2014). Las decisiones válidas van de 2014-12-31 a 2025-11-28 (132). Fuera de muestra para la REGLA, no para el diseño de este experimento (ver docs/EXP-002_DISENO.md, §8)."},
+    {"name": "2026_parcial", "start": "2026-01-01", "end": "2026-09-30", "note": "Solo descriptivo. Era la reserva de EXP-001 y ya ha transcurrido; menos de 10 decisiones."}
   ],
   "period_rules": [
-    "Cada periodo empieza con 100 de capital y en liquidez. En la primera sesión se compra el objetivo de la última decisión anterior al inicio, que solo usa datos previos. No hay arranque plano hasta una señal.",
-    "Al final de cada periodo se liquida al cierre de la última sesión, pagando costes, igual que las referencias."
+    "Cada periodo es una simulación independiente que empieza con el capital inicial en efectivo.",
+    "GEM compra en la apertura de la primera sesión válida del periodo el objetivo de la última decisión anterior al inicio, que solo usa datos previos. Las referencias compran en esa misma apertura.",
+    "Las decisiones cuya ejecución caería después de la última sesión del periodo no se ejecutan.",
+    "Todas las carteras se liquidan al cierre de la última sesión válida del periodo, con costes."
   ],
   "benchmarks": [
-    {"name": "spy_buy_hold", "rule": "100% SPY comprado en la primera sesión y vendido al cierre de la última. Mismos costes: 2 órdenes."},
-    {"name": "pasiva_60_40", "rule": "30% SPY + 30% VEU + 40% AGG, comprados en la primera sesión SIN rebalanceo: 3 órdenes al inicio y 3 al final. Sin rebalanceo porque, con 100 de capital, rebalancear cada año costaría unos 3 al año."},
-    {"name": "bil", "rule": "Rentabilidad de BIL. Solo informativa y como tasa libre de riesgo."}
+    {"name": "spy_buy_hold", "rule": "100% del efectivo neto de comisión en SPY en la primera apertura del periodo. Se vende en la liquidación final."},
+    {"name": "pasiva_30_30_40", "rule": "En la primera apertura del periodo: presupuesto = C0 - 3m, repartido en 30% SPY, 30% VEU y 40% AGG. Las cantidades no cambian hasta la liquidación final: los pesos evolucionan con los precios y no hay rebalanceo ni costes intermedios."},
+    {"name": "bil", "rule": "Solo como tasa libre de riesgo y como información. No es una cartera."}
   ],
   "metrics": {
-    "primary": ["max_drawdown (curva diaria valorada al cierre)", "cagr_neto (días naturales)"],
-    "secondary": ["sharpe_exceso_bil (diario, anualizado ×√252)", "sortino_exceso_bil", "volatilidad", "peor_año_natural", "numero_de_cambios", "costes_totales", "costes_sobre_capital_inicial", "tiempo_en_cada_activo"],
-    "uncertainty": "Bootstrap por bloques circular sobre rendimientos MENSUALES emparejados (GEM, 60/40, SPY). Bloque de 12 meses, 10.000 réplicas, semilla 20261009. Se dan IC del 95% de ΔCAGR, ΔSharpe y ΔMaxDD frente a cada referencia.",
-    "trials_count": "Pruebas acumuladas en ARGOS: 8 de EXP-001 (4 activos × 2 periodos) + 1 configuración principal + 8 de sensibilidad = 17. Se publica junto al resultado."
+    "valuation": "V_t = efectivo_t + Σ cantidad_i × Pc_i(t) al cierre de cada sesión válida t, sin costes de salida salvo en la última sesión, donde V_final es el efectivo tras la liquidación. V_0 = C0 justo antes de la primera apertura del periodo.",
+    "max_drawdown": "MaxDD = max sobre t en {0} ∪ sesiones de (1 - V_t / max_{u<=t} V_u). Se expresa como fracción positiva.",
+    "cagr": "CAGR = (V_final / C0)^(365,25 / D) - 1, con D = días naturales entre la primera y la última sesión del periodo.",
+    "sharpe_exceso": "e_t = (V_t / V_(t-1) - 1) - (Pc_BIL(t) / Pc_BIL(t-1) - 1). Sharpe = media(e) / desv(e, ddof = 1) × √252.",
+    "sortino_exceso": "media(e) / sqrt(media(min(e, 0)^2)) × √252.",
+    "others": ["volatilidad anualizada", "peor año natural", "K (número de cambios)", "comisiones totales", "deslizamiento total", "coste total / C0", "fracción de sesiones en cada activo"],
+    "identical_methodology": "GEM, SPY y la 30/30/40 usan el mismo motor, las mismas sesiones, los mismos precios, las mismas fórmulas de costes y las mismas métricas. Solo cambian los pesos objetivo.",
+    "uncertainty": "Bootstrap circular por bloques de 12 meses sobre los rendimientos mensuales emparejados (de V en el último cierre de cada mes), 10.000 réplicas, numpy.random.default_rng(20261009). Se dan IC del 95% por percentiles de ΔCAGR = CAGR_GEM - CAGR_ref (anualizado con 12/N), ΔSharpe mensual anualizado ×√12, y ΔMaxDD sobre la curva mensual remuestreada. Es una aproximación: no sustituye a C1 y C2, que se calculan sobre la curva diaria real.",
+    "trials_count": "Pruebas acumuladas en ARGOS: 8 de EXP-001 + 1 configuración principal + 8 de sensibilidad = 17. Se publica junto al resultado."
   },
   "regime_classification": {
     "unit": "año natural completo",
@@ -78,45 +110,47 @@
     "bear_threshold": -0.1
   },
   "sensitivity": {
-    "note": "Se calculan todas y se publican. NUNCA se usan para elegir la configuración ni para cambiar el veredicto principal.",
+    "note": "Se calculan las 8 y se publican todas. Ninguna puede sustituir a la configuración principal, cambiar C1 o C2, ni modificar el veredicto, ni siquiera si alguna los cumple y la principal no.",
     "variants": [
-      {"id": "S1", "change": "Filtro absoluto sobre el activo GANADOR (variante más difundida): AGG si R(ganador) <= R(BIL)."},
+      {"id": "S1", "change": "Filtro absoluto sobre el activo GANADOR: AGG si max(R_SPY, R_VEU) <= R_BIL."},
       {"id": "S2", "change": "lookback_months = 6"},
       {"id": "S3", "change": "lookback_months = 9"},
-      {"id": "S4", "change": "Costes ×2: comisión mínima 2 y deslizamiento 0,10%."},
-      {"id": "S5", "change": "Capital inicial 50"},
-      {"id": "S6", "change": "Capital inicial 200"},
-      {"id": "S7", "change": "Capital inicial 10.000 (la comisión mínima pesa poco)"},
-      {"id": "S8", "change": "Ejecución al CIERRE del día de decisión, como en los backtests publicados. Optimista: no se podría operar con ese precio sabiendo ya la señal."}
+      {"id": "S4", "change": "Costes ×2: m = 2 y s = 0,0010."},
+      {"id": "S5", "change": "Capital inicial 50 (m = 1)."},
+      {"id": "S6", "change": "Capital inicial 200 (m = 1)."},
+      {"id": "S7", "change": "Capital inicial 10.000 (m = 1; la comisión mínima pesa poco)."},
+      {"id": "S8", "change": "Ejecución al CIERRE del día de decisión, como en los backtests publicados. Optimista: no es realizable, porque la señal se conoce con ese mismo cierre."}
     ]
   },
   "success_criteria": {
-    "evaluated_on": "evaluacion (2014-01-01 a 2025-12-31), configuración principal",
-    "C1_caida": "MaxDD(GEM) <= 0,75 × MaxDD(SPY)",
-    "C2_coste_de_la_proteccion": "CAGR_neto(GEM) >= CAGR_neto(pasiva_60_40)",
+    "evaluated_on": "Periodo evaluacion (2015-01-01 a 2025-12-31), configuración principal (C0 = 100, m = 1, s = 0,0005, 12 meses, ejecución en la apertura siguiente).",
+    "C1": "MaxDD(GEM) <= 0,75 × MaxDD(spy_buy_hold)",
+    "C2": "CAGR(GEM) >= CAGR(pasiva_30_30_40)",
     "verdicts": {
-      "mejora_robusta": "C1 y C2 se cumplen; el IC 95% de ΔCAGR(GEM − 60/40) queda entero por encima de 0; y C1 y C2 se siguen cumpliendo con costes ×2 (S4).",
-      "indicio_no_concluyente": "C1 y C2 se cumplen, pero no las demás condiciones de mejora_robusta.",
+      "mejora_robusta": "C1 y C2 se cumplen; el IC 95% bootstrap de ΔCAGR(GEM - 30/30/40) queda entero por encima de 0; y C1 y C2 también se cumplen en S4 (costes ×2).",
+      "indicio_no_concluyente": "C1 y C2 se cumplen, pero falta alguna de las demás condiciones de mejora_robusta.",
       "no_se_ha_demostrado_mejora": "C1 o C2 no se cumplen."
     },
     "inconclusive_if": [
       "Alguno de los 4 activos queda bloqueado por el control de calidad o la auditoría.",
+      "Falta una sesión NYSE esperada en algún activo (calendar_rule).",
       "Hay menos de 132 decisiones mensuales válidas en el periodo de evaluación.",
       "La auditoría anti look-ahead por truncamiento falla.",
-      "Hace falta desviarse del protocolo para poder ejecutarlo. En ese caso se crea EXP-003 y no se reinterpreta este."
+      "Se activa insufficient_cash_rule.",
+      "Hace falta desviarse del protocolo para ejecutarlo. En ese caso se crea EXP-003 y este no se reinterpreta."
     ],
-    "interpretation": "Distinguir siempre cuatro cosas: mejora de rentabilidad, mejora ajustada al riesgo, reducción de caídas y reducción de costes. Cumplir C1 y C2 sería evidencia en esta muestra histórica, nunca una garantía ni una recomendación.",
-    "minimum_trades_caveat": "Con unos 1,5 cambios al año habrá unos 18 en el periodo de evaluación. Es una muestra pequeña y se dirá así."
+    "interpretation": "Se informa por separado de cuatro cosas: mejora de rentabilidad (CAGR), mejora ajustada al riesgo (Sharpe y Sortino), reducción de caídas (MaxDD) y costes. Cumplir C1 y C2 sería evidencia en esta muestra histórica, nunca una garantía ni una recomendación.",
+    "minimum_trades_caveat": "Con unos 1,5 cambios al año habría unos 16 en la evaluación: muestra pequeña, y se dirá así."
   },
   "reserved_holdout": {
     "start": "2026-10-01",
-    "note": "Los datos desde 2026-10-01 no se usan en EXP-002. Si se aprueba una evaluación prospectiva, se registraría como experimento propio."
+    "note": "Los datos desde 2026-10-01 no se usan en EXP-002."
   },
   "forbidden": [
     "Cambiar reglas, parámetros, costes, activos, periodos o criterios después de ver resultados.",
-    "Usar las variantes de sensibilidad para elegir la configuración o cambiar el veredicto.",
+    "Sustituir la configuración principal por una variante de sensibilidad.",
     "Sustituir datos reales por sintéticos, o rellenar huecos.",
-    "Presentar el resultado como recomendación de inversión o garantía de resultados futuros.",
-    "Modificar EXP-001 o sus resultados."
+    "Escribir en data/csv/ (EXP-001) o modificar protocolos, resultados o registros de EXP-001.",
+    "Presentar el resultado como recomendación de inversión o garantía de resultados futuros."
   ]
 }
