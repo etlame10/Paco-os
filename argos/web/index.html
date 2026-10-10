@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ARGOS · Inteligencia de mercado</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="logo.svg" alt="" class="brand-logo" width="40" height="40">
+      <div>
+        <h1 class="brand-name">ARGOS</h1>
+        <p class="brand-tag">Centro de inteligencia de mercado · fase 1</p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Secciones">
+      <button type="button" class="tab active" data-view="analysis" aria-current="page">Análisis</button>
+      <button type="button" class="tab" data-view="backtest">Backtest</button>
+    </nav>
+    <div class="status-pills">
+      <span class="pill pill-safe" id="pill-trading">Operativa real: DESACTIVADA</span>
+      <span class="pill pill-safe">Broker: no conectado</span>
+    </div>
+  </header>
+
+  <main class="container">
+   <div id="view-analysis">
+    <section class="search-card">
+      <form id="search-form" class="search-row" autocomplete="off">
+        <label for="ticker-input" class="visually-hidden">Ticker</label>
+        <input id="ticker-input" name="ticker" placeholder="Introduce un ticker, p. ej. DEMO-ALCISTA" maxlength="20" spellcheck="false">
+        <button type="submit" id="analyze-btn">Analizar</button>
+      </form>
+      <div class="chips" id="ticker-chips" aria-label="Tickers disponibles"></div>
+      <p class="hint" id="data-hint">Cargando fuentes de datos…</p>
+    </section>
+
+    <div id="demo-banner" class="demo-banner" role="alert" hidden>
+      <strong>DATOS DE DEMOSTRACIÓN</strong>
+      <span id="demo-banner-text">Este análisis usa datos simulados de un activo ficticio. No representan ningún mercado real.</span>
+    </div>
+
+    <div class="legend" aria-label="Capas del análisis">
+      <span class="layer layer-dato">Dato</span><span>lo que sabemos</span>
+      <span class="layer layer-indicador">Indicador</span><span>lo que calculamos</span>
+      <span class="layer layer-interpretacion">Interpretación</span><span>lo que creemos que significa</span>
+      <span class="layer layer-conclusion">Conclusión</span><span>la evaluación final</span>
+    </div>
+
+    <p id="error-box" class="error-box" role="alert" hidden></p>
+
+    <div id="results" class="grid" hidden>
+      <section class="panel" id="panel-asset">
+        <header><h2>Activo</h2><span class="layer layer-dato">Dato</span></header>
+        <div class="panel-body" id="asset-body"></div>
+      </section>
+
+      <section class="panel panel-wide" id="panel-chart">
+        <header><h2>Precio</h2><span class="layer layer-dato">Dato</span><span class="layer layer-indicador">Indicador</span></header>
+        <div class="panel-body" id="chart-body"></div>
+      </section>
+
+      <section class="panel" id="panel-indicators">
+        <header><h2>Indicadores</h2><span class="layer layer-indicador">Indicador</span></header>
+        <div class="panel-body" id="indicators-body"></div>
+      </section>
+
+      <section class="panel" id="panel-analysis">
+        <header><h2>Análisis</h2><span class="layer layer-interpretacion">Interpretación</span></header>
+        <div class="panel-body" id="analysis-body"></div>
+      </section>
+
+      <section class="panel" id="panel-risk">
+        <header><h2>Riesgo</h2><span class="layer layer-indicador">Indicador</span><span class="layer layer-interpretacion">Interpretación</span></header>
+        <div class="panel-body" id="risk-body"></div>
+      </section>
+
+      <section class="panel panel-wide" id="panel-conclusion">
+        <header><h2>Conclusión</h2><span class="layer layer-conclusion">Conclusión</span></header>
+        <div class="panel-body" id="conclusion-body"></div>
+      </section>
+
+      <section class="panel panel-wide" id="panel-explanation">
+        <header><h2>Explicación</h2></header>
+        <div class="panel-body" id="explanation-body"></div>
+      </section>
+    </div>
+   </div>
+
+   <div id="view-backtest" hidden>
+    <section class="search-card">
+      <h2 class="section-title">Backtest <span class="kind-tag">simulación histórica</span></h2>
+      <p class="hint">¿Qué habría pasado si se hubiera seguido una estrategia en el pasado? Se compara siempre con <b>Buy &amp; Hold</b> (comprar y mantener). No se ejecuta ninguna operación.</p>
+      <form id="bt-form" class="bt-form" autocomplete="off">
+        <label>Ticker<select id="bt-ticker" required></select></label>
+        <label>Estrategia<select id="bt-strategy" required></select></label>
+        <div id="bt-params" class="bt-params"></div>
+        <label>Capital inicial<input id="bt-capital" type="number" min="1" step="any" value="10000" required></label>
+        <label>Comisión (%)<input id="bt-commission" type="number" min="0" max="5" step="any" value="0.1" required></label>
+        <label>Slippage (%)<input id="bt-slippage" type="number" min="0" max="5" step="any" value="0.05" required></label>
+        <label>Desde (opcional)<input id="bt-start" type="date"></label>
+        <label>Hasta (opcional)<input id="bt-end" type="date"></label>
+        <button type="submit" id="bt-run">Ejecutar backtest</button>
+      </form>
+      <p class="hint" id="bt-strategy-desc"></p>
+    </section>
+
+    <div id="bt-demo-banner" class="demo-banner" role="alert" hidden>
+      <strong>DATOS DE DEMOSTRACIÓN</strong>
+      <span id="bt-demo-text"></span>
+    </div>
+    <p id="bt-error" class="error-box" role="alert" hidden></p>
+
+    <div id="bt-results" hidden>
+      <div class="history-banner" role="note">
+        <strong>RESULTADO HISTÓRICO · NO ES UNA PREDICCIÓN</strong>
+        <span id="bt-warning"></span>
+      </div>
+      <div class="grid">
+        <section class="panel panel-wide">
+          <header><h2>Resumen</h2><span class="kind-tag">histórico</span></header>
+          <div class="panel-body" id="bt-summary"></div>
+        </section>
+        <section class="panel panel-wide">
+          <header><h2>Comparación · ARGOS vs Buy &amp; Hold</h2></header>
+          <div class="panel-body" id="bt-comparison"></div>
+        </section>
+        <section class="panel panel-wide">
+          <header><h2>Gráfico</h2></header>
+          <div class="panel-body" id="bt-chart"></div>
+        </section>
+        <section class="panel panel-wide">
+          <header><h2>Operaciones</h2></header>
+          <div class="panel-body" id="bt-trades"></div>
+        </section>
+        <section class="panel panel-wide">
+          <header><h2>Calidad de los datos</h2></header>
+          <div class="panel-body" id="bt-quality"></div>
+        </section>
+        <section class="panel panel-wide">
+          <header><h2>Transparencia</h2></header>
+          <div class="panel-body" id="bt-transparency"></div>
+        </section>
+      </div>
+      <div class="save-row">
+        <button type="button" id="bt-save" class="btn-secondary">Guardar en el registro de experimentos</button>
+        <span id="bt-save-status" class="hint" role="status"></span>
+      </div>
+    </div>
+
+    <section class="panel panel-wide registry-panel">
+      <header><h2>Registro de experimentos</h2><span class="kind-tag">local</span></header>
+      <div class="panel-body" id="bt-registry"></div>
+    </section>
+   </div>
+  </main>
+
+  <footer class="footer">
+    <p id="disclaimer">ARGOS es una herramienta de análisis y aprendizaje. Ninguna señal, interpretación o conclusión garantiza cómo se comportará el mercado. No es asesoramiento financiero y ARGOS no ejecuta operaciones.</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="backtest.js"></script>
+</body>
+</html>
