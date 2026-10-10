@@ -262,7 +262,10 @@ los precios. **No hay costes de rebalanceo porque no hay rebalanceo.** Total: 6 
 - Implementación (fase 5): una opción de carpeta de salida en `tiingo convertir` y en `data.check`, más un test que
   impida que una conversión de EXP-002 escriba en `data/csv/`. El auditor ya admite `--csv-dir`.
 
-## 10. Implementación prevista (fase 5, después de registrar)
+## 10. Implementación (fase 5)
+
+Hecha: ver [EXP-002_IMPLEMENTACION.md](EXP-002_IMPLEMENTACION.md). Lo que sigue es el plan original.
+
 
 `argos/backtest/portfolio.py` (pesos objetivo, varios activos, comisión mínima, calendario común estricto),
 `argos/strategy/gem.py` (con auditoría de truncamiento), métricas en exceso y bootstrap,

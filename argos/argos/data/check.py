@@ -27,7 +27,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--protocolo", default=None, help="Aplica los requisitos de datos de un experimento (p. ej. EXP-001).")
     args = ap.parse_args(argv)
 
-    csv = CsvProvider(args.dir)
+    directory = args.dir
+    if directory is None and args.protocolo and args.protocolo != "EXP-001":
+        from argos.experiments.storage import csv_dir_for
+
+        directory = csv_dir_for(args.protocolo)  # cada experimento posterior tiene su propia carpeta
+    csv = CsvProvider(directory)
     requirements = None
     tickers = [t.upper() for t in args.tickers]
     if args.protocolo:

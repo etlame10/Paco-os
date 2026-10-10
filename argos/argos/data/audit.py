@@ -329,12 +329,17 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Audita los CSV de ARGOS sin ejecutar ninguna estrategia.")
     ap.add_argument("tickers", nargs="*")
     ap.add_argument("--protocolo", default="EXP-001")
-    ap.add_argument("--csv-dir", type=Path, default=tiingo.CSV_DIR)
+    ap.add_argument("--csv-dir", type=Path, default=None,
+                    help="Por defecto, la carpeta del protocolo (EXP-001: data/csv/; EXP-00N: data/csv/EXP-00N/).")
     ap.add_argument("--raw-dir", type=Path, default=tiingo.RAW_DIR)
     ap.add_argument("--salida", type=Path, default=None, help="Guardar también el informe en Markdown.")
     args = ap.parse_args(argv)
 
     protocol, _, _ = load_protocol(args.protocolo)
+    if args.csv_dir is None:
+        from argos.experiments.storage import csv_dir_for
+
+        args.csv_dir = csv_dir_for(args.protocolo)
     tickers = [t.upper() for t in args.tickers] or [x.ticker for x in protocol.assets if x.core]
     req = protocol.data_requirements
     # Rango de sesiones esperadas: desde la primera sesión del año requerido hasta el final requerido.

@@ -1,7 +1,7 @@
 """Descarga y conversión de históricos de Tiingo para los experimentos de ARGOS.
 
     python -m argos.tools.tiingo descargar   # 1. baja los originales a data/raw/tiingo/ (necesita TIINGO_API_KEY)
-    python -m argos.tools.tiingo convertir   # 2. los convierte a data/csv/ y ejecuta el control de integridad
+    python -m argos.tools.tiingo convertir   # 2. los convierte (EXP-001: data/csv/; EXP-00N: data/csv/EXP-00N/) y los valida
     python -m argos.tools.tiingo diagnosticar-tls  # comprueba solo la conexión TLS (sin clave ni datos)
 
 Activos y fechas salen del protocolo (por defecto EXP-001, activos principales):
@@ -57,11 +57,18 @@ def cmd_descargar(args) -> int:
 
 
 def cmd_convertir(args) -> int:
-    tickers, _, _ = _plan(args.protocolo, args.tickers, args.complementarios)
+    from argos.experiments.storage import check_csv_dir, csv_dir_for, download_for_range
+
+    tickers, start, end = _plan(args.protocolo, args.tickers, args.complementarios)
+    csv_dir = csv_dir_for(args.protocolo)
+    check_csv_dir(args.protocolo, csv_dir)
+    print(f"Convirtiendo para {args.protocolo} → {csv_dir}")
     failed = 0
     for t in tickers:
         try:
-            res = tiingo.convert(t, overwrite=args.sobrescribir)
+            # Solo la descarga con el rango EXACTO de este protocolo: la de otro experimento nunca se mezcla.
+            entry = download_for_range(t, start, end, tiingo.RAW_DIR)
+            res = tiingo.convert(t, overwrite=args.sobrescribir, raw_dir=tiingo.RAW_DIR, csv_dir=csv_dir, entry=entry)
         except tiingo.TiingoError as exc:
             print(f"  ✕ {exc}")
             failed += 1
@@ -77,7 +84,7 @@ def cmd_convertir(args) -> int:
     print("\nControl de integridad con los requisitos del protocolo:")
     from argos.data.check import main as check_main
 
-    return check_main(["--protocolo", args.protocolo, *tickers])
+    return check_main(["--protocolo", args.protocolo, "--dir", str(csv_dir), *tickers])
 
 
 def cmd_diagnosticar_tls(_args) -> int:

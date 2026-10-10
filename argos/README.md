@@ -49,6 +49,7 @@ python -m argos.tools.tiingo convertir           # CSV de ARGOS + control de int
 python -m argos.data.check --protocolo EXP-001   # control de integridad de tus CSV
 python -m argos.data.audit                       # auditoría profunda (calendario, ajustes, procedencia)
 python -m argos.experiments.runner EXP-001       # experimento tal cual está registrado
+python -m argos.experiments.exp002 --ensayo-sintetico  # EXP-002: ensayo con datos SIMULADOS (no cuenta)
 ```
 
 ## Arquitectura
