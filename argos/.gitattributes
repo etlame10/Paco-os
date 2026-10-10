@@ -1,3 +1,6 @@
 # Los protocolos pre-registrados se verifican por su huella SHA-256 BYTE A BYTE.
 # Git no debe convertir sus saltos de línea (p. ej. LF → CRLF en Windows), o la huella cambiaría.
 protocols/** -text
+
+# El EA de MetaTrader se guarda byte a byte (UTF-8 con BOM y CRLF, como lo espera MetaEditor).
+mt5/**/*.mq5 -text
